@@ -7,7 +7,7 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands_tools.tavily import tavily_search
 from tools.crm import create_lead_record
-from tools.outreach import send_followup_email
+from tools.outreach import send_email_now 
 
 model = BedrockModel(
     model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -62,8 +62,10 @@ async def research_business(business_name: str) -> str:
     response = await research_agent.invoke_async(f"Research this business: {business_name}")
     return str(response)
 
-# ---- Stage 3: Build the demo automation, using the real research findings ----
-AUTOMATION_SYSTEM_PROMPT = """You are an automation builder for a freelancer's demo.
+from tools.outreach import send_email_now  # note: no longer importing send_followup_email as a tool
+
+# ---- Stage 3: Draft the automation (agent can save leads, but CANNOT send) ----
+DRAFT_SYSTEM_PROMPT = """You are an automation builder for a freelancer's demo.
 You will be given a business's name and research about them, including a likely pain point.
 
 Do the following:
@@ -71,27 +73,52 @@ Do the following:
    a real customer would actually write, connected to the pain point you were given.
 2. Save that inquiry as a new lead using create_lead_record, using the invented customer's
    name and the fixed demo email address you were given (use it exactly as provided).
-3. Send a short, warm, personalized follow-up email replying to that inquiry using
-   send_followup_email, written in the voice of the business being pitched to.
+3. Write a short, warm, personalized follow-up email replying to that inquiry, written in the
+   voice of the business being pitched to. Keep it under 100 words, friendly and professional.
 
-Keep the email under 100 words, friendly and professional. Reference the actual inquiry.
+Respond with ONLY the email in this exact format, nothing else before or after:
+SUBJECT: <subject line>
+BODY: <email body>
 """
 
-automation_agent = Agent(
+draft_agent = Agent(
     model=model,
-    tools=[create_lead_record, send_followup_email],
-    system_prompt=AUTOMATION_SYSTEM_PROMPT,
+    tools=[create_lead_record],   # send_followup_email intentionally NOT included
+    system_prompt=DRAFT_SYSTEM_PROMPT,
     callback_handler=None
 )
 
-async def build_demo_automation(business_name: str, research_profile: str, demo_email: str) -> str:
+async def draft_outreach(business_name: str, research_profile: str, demo_email: str) -> str:
     prompt = (
         f"Business: {business_name}\n\n"
         f"Research findings:\n{research_profile}\n\n"
         f"Use this exact email address for the demo customer: {demo_email}"
     )
-    response = await automation_agent.invoke_async(prompt)
+    response = await draft_agent.invoke_async(prompt)
     return str(response)
+
+def parse_draft(draft_text: str) -> tuple[str, str]:
+    subject, body_lines, in_body = "", [], False
+    for line in draft_text.strip().split("\n"):
+        if line.startswith("SUBJECT:"):
+            subject = line.replace("SUBJECT:", "").strip()
+        elif line.startswith("BODY:"):
+            in_body = True
+            body_lines.append(line.replace("BODY:", "").strip())
+        elif in_body:
+            body_lines.append(line)
+    return subject, "\n".join(body_lines).strip()
+
+def review_and_send(business_name: str, demo_email: str, draft_text: str):
+    subject, body = parse_draft(draft_text)
+    print(f"\n--- DRAFTED OUTREACH for {business_name} ---")
+    print(f"To: {demo_email}\nSubject: {subject}\nBody:\n{body}\n")
+
+    approval = input("Send this email? (y/n): ").strip().lower()
+    if approval == "y":
+        print(send_email_now(to_email=demo_email, subject=subject, body=body))
+    else:
+        print("Skipped — not sent.")
 
 # ---- Run the full chain ----
 async def main():
@@ -108,9 +135,9 @@ async def main():
         profile = await research_business(name)
         print(profile)
 
-        print(f"\n=== Building demo automation for: {name} ===")
-        automation_result = await build_demo_automation(name, profile, demo_email)
-        print(automation_result)
+        print(f"\n=== Drafting outreach for: {name} ===")
+        draft = await draft_outreach(name, profile, demo_email)
+        review_and_send(name, demo_email, draft)
 
 if __name__ == "__main__":
     asyncio.run(main())

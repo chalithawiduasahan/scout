@@ -26,6 +26,7 @@ app.mount("/screenshots", StaticFiles(directory="screenshots"), name="screenshot
 class ResearchRequest(BaseModel):
     niche: str
     location: str
+    scale: str = "small"
 
 class RegenerateRequest(BaseModel):
     business_name: str
@@ -44,13 +45,13 @@ async def serve_index():
 @app.post("/api/start-agent")
 async def start_agent_pipeline(request: ResearchRequest):
     try:
-        print(f"\n--- API Request Received: Niche='{request.niche}', Location='{request.location}' ---")
+        print(f"\n--- API Request Received: Niche='{request.niche}', Location='{request.location}', Scale='{request.scale}' ---")
         
         # 1. Discover
-        print("Finding businesses...")
-        businesses = await find_businesses(request.niche, request.location)
+        print("Finding targeted businesses...")
+        businesses = await find_businesses(request.niche, request.location, request.scale)
         if not businesses:
-            raise HTTPException(status_code=404, detail="No businesses found for this query.")
+            raise HTTPException(status_code=404, detail="No businesses found matching these criteria.")
         
         target_business = businesses[0]
         print(f"Target business selected: {target_business}")

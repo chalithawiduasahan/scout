@@ -1,420 +1,634 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoAgent | Autonomous Pitching & Proof Engine</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { background-color: #000000; }
-    .glass-card {
-      background: rgba(10, 10, 12, 0.85);
-      backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-    }
-    .glass-card-hover:hover {
-      border-color: rgba(99, 102, 241, 0.4);
-      box-shadow: 0 0 30px rgba(99, 102, 241, 0.15);
-    }
-    .grid-bg {
-      background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-      background-size: 24px 24px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scout — Find the client, prove the value</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0A1817;
+    --panel: #0F2422;
+    --panel-2: #143330;
+    --border: #23413D;
+    --brass: #C99A4E;
+    --sage: #6FAE8F;
+    --text: #EDEAE1;
+    --text-dim: #9FB0AC;
+    --danger: #D97757;
+    --radius: 10px;
+    --serif: 'Newsreader', Georgia, serif;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--ink); color: var(--text); font-family: var(--sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  img { max-width: 100%; display: block; }
+  button { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  .hidden { display: none !important; }
+
+  /* ---------- Reveal on scroll ---------- */
+  .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.visible { opacity: 1; transform: none; }
+  .reveal-group.visible .r-child:nth-child(1) { transition-delay: 0s; }
+  .reveal-group.visible .r-child:nth-child(2) { transition-delay: 0.08s; }
+  .reveal-group.visible .r-child:nth-child(3) { transition-delay: 0.16s; }
+  .reveal-group.visible .r-child:nth-child(4) { transition-delay: 0.24s; }
+
+  /* ---------- Landing shell ---------- */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+  .nav { position: sticky; top: 0; z-index: 30; background: rgba(10,24,23,0.85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .nav-inner { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; }
+  .logo { font-family: var(--serif); font-size: 21px; }
+  .logo span { color: var(--brass); }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; color: var(--text-dim); }
+  .nav-links a:hover { color: var(--text); }
+
+  section { padding: 90px 0; border-top: 1px solid var(--border); }
+  section:first-of-type { border-top: none; }
+  .eyebrow-free-h2 { font-family: var(--serif); font-weight: 500; font-size: 30px; margin: 0 0 16px; max-width: 18ch; }
+  .section-lede { color: var(--text-dim); font-size: 15.5px; max-width: 52ch; margin: 0 0 40px; }
+
+  .btn-primary { background: var(--brass); color: #241703; border: none; font-weight: 600; font-size: 15px; padding: 14px 26px; border-radius: 8px; transition: transform 0.15s ease, background 0.15s ease; }
+  .btn-primary:hover { background: #dcae66; transform: translateY(-1px); }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); font-size: 15px; padding: 13px 24px; border-radius: 8px; transition: border-color 0.15s ease; }
+  .btn-secondary:hover { border-color: var(--brass); }
+
+  /* ---------- Hero ---------- */
+  .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 64px; align-items: center; padding: 80px 0 90px; }
+  .hero h1 { font-family: var(--serif); font-weight: 500; font-size: 52px; line-height: 1.12; margin: 0 0 22px; max-width: 12ch; opacity: 0; transform: translateY(14px); animation: rise 0.7s ease-out 0.1s forwards; }
+  .hero p.lede { font-size: 17px; color: var(--text-dim); max-width: 46ch; margin: 0 0 30px; opacity: 0; transform: translateY(14px); animation: rise 0.7s ease-out 0.28s forwards; }
+  .hero .cta-row { display: flex; gap: 12px; opacity: 0; transform: translateY(14px); animation: rise 0.7s ease-out 0.46s forwards; }
+  @keyframes rise { to { opacity: 1; transform: translateY(0); } }
+
+  .radar-wrap { perspective: 900px; }
+  .radar { position: relative; width: 100%; aspect-ratio: 1; max-width: 380px; margin: 0 auto; border-radius: 50%; background: radial-gradient(circle at 50% 50%, #10312D 0%, #0A1817 72%); border: 1px solid var(--border); transform-style: preserve-3d; transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center; }
+  .radar .ring { position: absolute; border-radius: 50%; border: 1px solid #1D3D38; }
+  .radar .ring:nth-child(1) { inset: 15%; } .radar .ring:nth-child(2) { inset: 32%; } .radar .ring:nth-child(3) { inset: 49%; }
+  .radar .sweep { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(201,154,78,0.35), transparent 34%); animation: spin 4.5s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .radar .dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--sage); box-shadow: 0 0 10px 2px rgba(111,174,143,0.6); opacity: 0; animation: ping 4.5s ease-in-out infinite; }
+  .radar .dot:nth-child(5) { top: 30%; left: 62%; animation-delay: 0.6s; }
+  .radar .dot:nth-child(6) { top: 62%; left: 34%; animation-delay: 1.8s; }
+  .radar .dot:nth-child(7) { top: 45%; left: 74%; animation-delay: 3.1s; }
+  @keyframes ping { 0%, 92%, 100% { opacity: 0; } 8%, 40% { opacity: 1; } }
+
+  /* ---------- Problem ---------- */
+  .problem-body { font-size: 16px; color: var(--text-dim); max-width: 58ch; line-height: 1.75; }
+  .problem-body strong { color: var(--text); font-weight: 600; }
+
+  /* ---------- How it works ---------- */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; }
+  .steps::before { content: ''; position: absolute; top: 17px; left: 6%; right: 6%; height: 1px; background: var(--border); }
+  .step { position: relative; padding-right: 20px; }
+  .step .num { width: 34px; height: 34px; border-radius: 50%; background: var(--panel); border: 1px solid var(--brass); color: var(--brass); font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; position: relative; z-index: 1; }
+  .step h3 { font-size: 16px; margin: 0 0 8px; font-weight: 600; }
+  .step p { font-size: 14px; color: var(--text-dim); margin: 0; }
+
+  /* ---------- Proof stack ---------- */
+  .proof-section { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+  .proof-stack-wrap { perspective: 1000px; }
+  .proof-stack { position: relative; height: 280px; transform-style: preserve-3d; transition: transform 0.2s ease-out; }
+  .proof-card { position: absolute; width: 220px; height: 150px; top: 50%; left: 50%; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 20px 40px rgba(0,0,0,0.35); overflow: hidden; }
+  .proof-card .chrome { height: 22px; background: var(--panel-2); display: flex; align-items: center; gap: 4px; padding: 0 8px; }
+  .proof-card .chrome span { width: 6px; height: 6px; border-radius: 50%; background: #375954; }
+  .proof-card .body { padding: 12px; font-size: 11px; color: var(--text-dim); }
+  .proof-card .body .line { height: 6px; background: #1B3733; border-radius: 3px; margin-bottom: 7px; }
+  .proof-card .label { position: absolute; bottom: 8px; left: 12px; font-size: 11px; color: var(--brass); font-weight: 600; }
+  .card-1 { transform: translate(-50%, -50%) rotate(-9deg) translateX(-70px); z-index: 1; }
+  .card-2 { transform: translate(-50%, -50%) rotate(0deg); z-index: 2; }
+  .card-3 { transform: translate(-50%, -50%) rotate(9deg) translateX(70px); z-index: 1; }
+
+  /* ---------- Tech strip ---------- */
+  .tech-strip { border-top: 1px solid var(--border); padding: 40px 0; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: var(--text-dim); font-size: 13px; }
+  .tech-badge { border: 1px solid var(--border); border-radius: 20px; padding: 7px 16px; }
+
+  .final-cta { text-align: left; }
+  .final-cta h2 { font-family: var(--serif); font-weight: 500; font-size: 32px; margin: 0 0 22px; max-width: 20ch; }
+
+  footer { border-top: 1px solid var(--border); padding: 24px 0 40px; color: var(--text-dim); font-size: 13px; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; padding-top: 40px; }
+    .hero h1 { font-size: 38px; }
+    .steps { grid-template-columns: 1fr 1fr; gap: 32px 20px; }
+    .steps::before { display: none; }
+    .proof-section { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+  }
+
+  /* ---------- Modal (name entry) ---------- */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(6,14,13,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; width: 100%; max-width: 380px; }
+  .modal h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0 0 8px; }
+  .modal p { color: var(--text-dim); font-size: 14px; margin: 0 0 20px; }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+  .field input, .field textarea, .field select { width: 100%; background: var(--ink); border: 1px solid var(--border); color: var(--text); padding: 11px 13px; border-radius: 7px; font-size: 14px; font-family: inherit; }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--brass); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+  /* ---------- Lightbox ---------- */
+  .lightbox { position: fixed; inset: 0; background: rgba(4,10,9,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 60; animation: fadeIn 0.15s ease-out; }
+  .lightbox img { max-width: 88vw; max-height: 78vh; border-radius: 8px; border: 1px solid var(--border); }
+  .lightbox .lb-cap { color: var(--text-dim); margin-top: 14px; font-size: 14px; }
+  .lightbox .lb-close { position: absolute; top: 24px; right: 28px; background: none; border: 1px solid var(--border); color: var(--text); width: 36px; height: 36px; border-radius: 50%; font-size: 16px; }
+
+  /* ---------- Dashboard ---------- */
+  #dashboard { display: flex; height: 100vh; }
+  .sidebar { width: 220px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: width 0.2s ease; flex-shrink: 0; overflow: hidden; }
+  .sidebar.collapsed { width: 64px; }
+  .sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 20px; }
+  .sidebar-top .logo { font-size: 18px; white-space: nowrap; }
+  .collapse-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); width: 28px; height: 28px; border-radius: 6px; font-size: 14px; flex-shrink: 0; }
+  .nav-items { padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 7px; color: var(--text-dim); font-size: 14px; white-space: nowrap; background: none; border: none; text-align: left; width: 100%; }
+  .nav-item .ic { width: 18px; text-align: center; flex-shrink: 0; }
+  .nav-item.active { background: var(--panel-2); color: var(--text); }
+  .nav-item:hover:not(.active) { color: var(--text); }
+  .sidebar-foot { margin-top: auto; padding: 16px 20px; font-size: 13px; color: var(--text-dim); border-top: 1px solid var(--border); white-space: nowrap; }
+
+  .main { flex: 1; overflow-y: auto; padding: 40px 48px 80px; }
+  .main-inner { max-width: 760px; }
+  .main h1 { font-family: var(--serif); font-weight: 500; font-size: 30px; margin: 0 0 6px; }
+  .main .sub { color: var(--text-dim); font-size: 15px; margin: 0 0 36px; }
+
+  .run-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 14px; align-items: end; }
+  .run-panel .field { margin: 0; }
+
+  .status-line { margin-top: 22px; font-size: 14px; color: var(--brass); display: none; align-items: center; gap: 10px; }
+  .status-line.show { display: flex; }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--brass); animation: spin 0.8s linear infinite; }
+  .error-box { margin-top: 20px; background: rgba(217,119,87,0.1); border: 1px solid var(--danger); color: var(--danger); padding: 14px 16px; border-radius: 8px; font-size: 14px; display: none; }
+  .error-box.show { display: block; }
+
+  .results { margin-top: 36px; display: none; }
+  .results.show { display: block; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; }
+  .card h2 { font-size: 15px; margin: 0 0 4px; font-weight: 600; }
+  .card .business-name { font-family: var(--serif); font-size: 22px; margin: 0 0 16px; }
+  .profile-text { font-size: 13.5px; color: var(--text-dim); white-space: pre-wrap; line-height: 1.65; max-height: 200px; overflow-y: auto; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; }
+
+  .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .shot { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--ink); cursor: zoom-in; transition: border-color 0.15s ease; }
+  .shot:hover { border-color: var(--brass); }
+  .shot img { width: 100%; height: 140px; object-fit: cover; object-position: top; }
+  .shot .cap { padding: 8px 10px; font-size: 12.5px; color: var(--text-dim); }
+
+  .outreach-card textarea { min-height: 140px; resize: vertical; }
+  .outreach-actions { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+  .sent-note { margin-top: 14px; color: var(--sage); font-size: 14px; display: none; }
+  .sent-note.show { display: block; }
+
+  .empty-state { background: var(--panel); border: 1px dashed var(--border); border-radius: var(--radius); padding: 40px; text-align: center; color: var(--text-dim); font-size: 14px; }
+
+  @media (max-width: 900px) {
+    .run-panel { grid-template-columns: 1fr; }
+    .shots { grid-template-columns: 1fr; }
+    .main { padding: 28px 20px 60px; }
+  }
+</style>
 </head>
-<body class="bg-black text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white flex overflow-x-hidden">
+<body>
 
-  <!-- Retractable Navigation Sidebar -->
-  <aside id="sidebar" class="w-64 bg-black border-r border-slate-900 min-h-screen flex flex-col transition-all duration-300 z-30 fixed left-0 top-0 bottom-0">
-    <div class="p-6 border-b border-slate-900 flex items-center justify-between">
-      <div class="flex items-center space-x-3 cursor-pointer" onclick="showLandingPage()">
-        <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-white text-base shadow-lg shadow-indigo-600/50">
-          A
+<!-- ===================== LANDING ===================== -->
+<div id="landing">
+  <nav class="nav">
+    <div class="wrap nav-inner">
+      <div class="logo">Scout<span>.</span></div>
+      <div class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#proof">Proof</a>
+      </div>
+      <button class="btn-secondary" onclick="openNameModal()">Try it now</button>
+    </div>
+  </nav>
+
+  <section>
+    <div class="wrap hero">
+      <div>
+        <h1>Finds your next client. Then proves it can help them.</h1>
+        <p class="lede">Give it a niche and a location. It researches real businesses, builds a working automation demo for one of them, and drafts the outreach — you approve before anything sends.</p>
+        <div class="cta-row">
+          <button class="btn-primary" onclick="openNameModal()">Try it now</button>
+          <a href="#how"><button class="btn-secondary">See how it works</button></a>
         </div>
-        <span class="sidebar-text font-black text-lg tracking-tight text-white">AutoAgent</span>
       </div>
-      <button onclick="toggleSidebar()" class="text-slate-500 hover:text-white text-xs p-1">
-        ◀
-      </button>
-    </div>
-
-    <nav class="flex-1 p-4 space-y-2">
-      <button onclick="switchView('workspace')" id="navWorkspace" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-indigo-400 bg-indigo-950/40 border border-indigo-800/40 transition">
-        <span>⚡</span>
-        <span class="sidebar-text">Agent Pipeline</span>
-      </button>
-      <button onclick="switchView('history')" id="navHistory" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-900 transition">
-        <span>📂</span>
-        <span class="sidebar-text">Outreach History</span>
-      </button>
-    </nav>
-
-    <div class="p-4 border-t border-slate-900 space-y-2">
-      <div class="sidebar-text text-[11px] text-slate-500">OPERATING AS:</div>
-      <div id="sidebarUserName" class="sidebar-text text-xs font-bold text-slate-300 truncate"></div>
-      <button onclick="openOnboardingModal()" class="sidebar-text text-[11px] text-indigo-400 hover:underline">Edit Name</button>
-    </div>
-  </aside>
-
-  <!-- Main Content Area -->
-  <div id="mainContainer" class="flex-1 ml-64 transition-all duration-300 min-h-screen flex flex-col grid-bg">
-    
-    <!-- Top Header -->
-    <header class="border-b border-slate-900 bg-black/80 backdrop-blur sticky top-0 px-8 py-4 flex justify-between items-center z-20">
-      <div class="flex items-center space-x-3">
-        <span class="text-xs font-mono text-slate-500">HACKATHON BUILD • AGENTS FOR HUMANS</span>
-      </div>
-      <button onclick="showLandingPage()" class="text-xs font-semibold px-4 py-2 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-300 transition">
-        Landing Page
-      </button>
-    </header>
-
-    <!-- VIEW 1: LANDING PAGE -->
-    <div id="landingPage" class="transition-all duration-500">
-      <section class="max-w-5xl mx-auto px-6 pt-24 pb-16 text-center space-y-8">
-        <div class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs font-semibold text-indigo-400">
-          <span class="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
-          <span>Autonomous Outreach Engine with Proof Screenshots</span>
+      <div class="radar-wrap">
+        <div class="radar" id="radar">
+          <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+          <div class="sweep"></div>
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
         </div>
+      </div>
+    </div>
+  </section>
 
-        <h1 class="text-6xl md:text-8xl font-black tracking-tight text-white leading-none">
-          Stop Pitching.<br />
-          <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-500">
-            Send Live Proof.
-          </span>
-        </h1>
+  <section>
+    <div class="wrap reveal">
+      <h2 class="eyebrow-free-h2">Cold outreach takes longer than the automation itself</h2>
+      <p class="problem-body">Finding a lead is one task. Researching what they'd actually need is another. Building a convincing sample of it, by hand, before you even know if they'll reply — that's most of an automation freelancer's week, and none of it scales. <strong>Scout does the research, builds a real working demo, and drafts the pitch</strong> — so the only manual step left is deciding whether to hit send.</p>
+    </div>
+  </section>
 
-        <p class="text-lg text-slate-400 max-w-2xl mx-auto font-light leading-relaxed">
-          AutoAgent finds local businesses, identifies operational pain points, automatically generates a working prototype demo, captures Playwright visual proofs, and drafts high-converting outreach for human approval.
-        </p>
-
-        <div class="pt-6">
-          <button onclick="openOnboardingModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-base px-10 py-4 rounded-2xl transition shadow-xl shadow-indigo-600/40 transform hover:-translate-y-1">
-            Launch Agent Engine
-          </button>
+  <section id="how">
+    <div class="wrap reveal reveal-group">
+      <h2 class="eyebrow-free-h2 r-child">How it works</h2>
+      <p class="section-lede r-child">Four steps, one pipeline, nothing sent without you.</p>
+      <div class="steps">
+        <div class="step r-child">
+          <div class="num">1</div>
+          <h3>Discover &amp; research</h3>
+          <p>Finds real businesses in your niche and location, then researches their site and socials for a concrete pain point.</p>
         </div>
-      </section>
-    </div>
-
-    <!-- VIEW 2: WORKSPACE -->
-    <div id="appWorkspace" class="hidden max-w-6xl w-full mx-auto p-8 space-y-8">
-      
-      <!-- Input Panel -->
-      <section class="glass-card rounded-2xl p-6 space-y-4">
-        <h2 class="text-lg font-bold text-white">Target Lead Criteria</h2>
-        <form id="agentForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-slate-400 mb-1">Niche</label>
-            <input type="text" id="niche" placeholder="e.g., event planners" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-400 mb-1">Location</label>
-            <input type="text" id="location" placeholder="e.g., Colombo, Sri Lanka" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition" />
-          </div>
-          <div class="flex items-end">
-            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl text-sm transition shadow-lg shadow-indigo-600/30">
-              Run Agent Pipeline
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <!-- Loading Indicator -->
-      <div id="loadingState" class="hidden glass-card rounded-2xl p-16 text-center space-y-6">
-        <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p class="text-sm font-semibold text-slate-300">Agent is executing research & building proof screenshots...</p>
-      </div>
-
-      <!-- Results & Human Review -->
-      <div id="outputWorkspace" class="hidden space-y-8">
-        
-        <!-- Screenshots -->
-        <section class="space-y-4">
-          <h3 class="text-md font-bold text-slate-200">Captured Proof Screenshots</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="glass-card glass-card-hover rounded-2xl p-4 space-y-3 cursor-pointer" onclick="openLightbox('imgForm')">
-              <span class="text-xs font-semibold text-slate-400">1. Intake Form Intake 🔍</span>
-              <img id="imgForm" class="rounded-xl border border-slate-800 w-full h-48 object-cover bg-black" />
-            </div>
-            <div class="glass-card glass-card-hover rounded-2xl p-4 space-y-3 cursor-pointer" onclick="openLightbox('imgAirtable')">
-              <span class="text-xs font-semibold text-slate-400">2. Airtable CRM Logging 🔍</span>
-              <img id="imgAirtable" class="rounded-xl border border-slate-800 w-full h-48 object-cover bg-black" />
-            </div>
-            <div class="glass-card glass-card-hover rounded-2xl p-4 space-y-3 cursor-pointer" onclick="openLightbox('imgEmail')">
-              <span class="text-xs font-semibold text-slate-400">3. Automated Response Email 🔍</span>
-              <img id="imgEmail" class="rounded-xl border border-slate-800 w-full h-48 object-cover bg-black" />
-            </div>
-          </div>
-        </section>
-
-        <!-- Human Review Box -->
-        <section class="glass-card rounded-2xl p-8 space-y-6 border border-indigo-500/30">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-            <h3 class="text-lg font-bold text-white">Review Outreach Pitch</h3>
-            <button onclick="regeneratePitch()" id="regenBtn" class="text-xs font-bold text-indigo-400 border border-indigo-800 px-3 py-1.5 rounded-lg hover:bg-indigo-950 transition">
-              ↻ Regenerate Pitch
-            </button>
-          </div>
-
-          <div class="space-y-4">
-            <div>
-              <label class="block text-xs font-semibold text-slate-400 mb-1">Recipient Email</label>
-              <input type="email" id="recipientEmail" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-400 mb-1">Subject</label>
-              <input type="text" id="draftSubject" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-400 mb-1">Email Body</label>
-              <textarea id="draftBody" rows="7" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 leading-relaxed"></textarea>
-            </div>
-          </div>
-
-          <div class="flex justify-end pt-2">
-            <button id="approveBtn" onclick="sendOutreachEmail()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl text-sm transition shadow-lg shadow-emerald-600/30">
-              Approve & Send Outreach
-            </button>
-          </div>
-        </section>
-
+        <div class="step r-child">
+          <div class="num">2</div>
+          <h3>Build a real demo</h3>
+          <p>Fills out an actual intake form, which saves a lead and drafts a reply — proof it works, not a mockup.</p>
+        </div>
+        <div class="step r-child">
+          <div class="num">3</div>
+          <h3>Draft the outreach</h3>
+          <p>Writes a short, personal pitch explaining the demo, with screenshots attached.</p>
+        </div>
+        <div class="step r-child">
+          <div class="num">4</div>
+          <h3>You approve &amp; send</h3>
+          <p>Nothing goes out to a real business until you review and approve it.</p>
+        </div>
       </div>
     </div>
+  </section>
 
-    <!-- VIEW 3: OUTREACH HISTORY LEDGER -->
-    <div id="historyWorkspace" class="hidden max-w-6xl w-full mx-auto p-8 space-y-6">
-      <h2 class="text-xl font-bold text-white">Outreach History & Campaign Ledger</h2>
-      <p class="text-xs text-slate-400">Review past business research, generated pitches, and visual proof assets.</p>
-
-      <div id="historyContainer" class="space-y-4">
-        <!-- Dynamically Populated -->
-      </div>
-    </div>
-
-  </div>
-
-  <!-- ONBOARDING MODAL -->
-  <div id="onboardingModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-    <div class="glass-card rounded-3xl p-8 max-w-md w-full space-y-6 border border-indigo-500/30">
-      <div class="text-center space-y-2">
-        <h3 class="text-2xl font-black text-white">Welcome to AutoAgent</h3>
-        <p class="text-xs text-slate-400">Enter your name so the agent can personalize your cold pitch signatures.</p>
+  <section id="proof">
+    <div class="wrap proof-section reveal">
+      <div class="proof-stack-wrap">
+        <div class="proof-stack" id="proofStack">
+          <div class="proof-card card-1">
+            <div class="chrome"><span></span><span></span><span></span></div>
+            <div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:90%"></div><div class="line" style="width:50%"></div></div>
+            <div class="label">Intake form</div>
+          </div>
+          <div class="proof-card card-2">
+            <div class="chrome"><span></span><span></span><span></span></div>
+            <div class="body"><div class="line" style="width:60%"></div><div class="line" style="width:85%"></div><div class="line" style="width:40%"></div></div>
+            <div class="label">CRM record</div>
+          </div>
+          <div class="proof-card card-3">
+            <div class="chrome"><span></span><span></span><span></span></div>
+            <div class="body"><div class="line" style="width:80%"></div><div class="line" style="width:55%"></div><div class="line" style="width:65%"></div></div>
+            <div class="label">Auto-reply email</div>
+          </div>
+        </div>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-400 mb-1">Your Full Name</label>
-        <input type="text" id="userNameInput" placeholder="e.g., Chalitha Widusahan" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500" />
+        <h2 class="eyebrow-free-h2">Real proof, not a mockup</h2>
+        <p class="section-lede">Every demo comes from an actual form submission, a real database write, and a real email — not text an AI invented. The screenshots you send are exactly what a business would see if they filled out that form themselves.</p>
       </div>
-      <button onclick="saveOnboardingName()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-sm transition">
-        Continue to Workspace
-      </button>
+    </div>
+  </section>
+
+  <div class="wrap tech-strip reveal">
+    <span>Built with</span>
+    <span class="tech-badge">Strands Agents SDK</span>
+    <span class="tech-badge">Amazon Bedrock</span>
+    <span class="tech-badge">AWS</span>
+  </div>
+
+  <section class="final-cta">
+    <div class="wrap reveal">
+      <h2>Give it a niche. See what it finds.</h2>
+      <button class="btn-primary" onclick="openNameModal()">Try it now</button>
+    </div>
+  </section>
+
+  <footer><div class="wrap">Built for the AWS Agents for Humans hackathon, on the Strands Agents SDK.</div></footer>
+</div>
+
+<!-- ===================== NAME MODAL ===================== -->
+<div class="modal-backdrop hidden" id="nameModal">
+  <div class="modal">
+    <h3>What should we call you?</h3>
+    <p>This name signs your outreach emails.</p>
+    <div class="field">
+      <label for="nameInput">Your name</label>
+      <input type="text" id="nameInput" placeholder="e.g. Chalitha" autofocus>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeNameModal()">Cancel</button>
+      <button class="btn-primary" onclick="enterDashboard()">Continue</button>
     </div>
   </div>
+</div>
 
-  <!-- LIGHTBOX MODAL -->
-  <div id="lightboxModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/95 backdrop-blur-xl cursor-pointer" onclick="closeLightbox()">
-    <img id="lightboxImg" class="rounded-2xl border border-slate-800 max-h-[85vh] object-contain shadow-2xl" />
-  </div>
+<!-- ===================== LIGHTBOX ===================== -->
+<div class="lightbox hidden" id="lightbox" onclick="closeLightboxOnBackdrop(event)">
+  <button class="lb-close" onclick="closeLightbox()" aria-label="Close">✕</button>
+  <img id="lightboxImg" src="" alt="">
+  <div class="lb-cap" id="lightboxCap"></div>
+</div>
 
-  <script>
-    const API_BASE = "http://localhost:8000";
-    let currentAttachments = [];
-    let currentUserName = localStorage.getItem("autoagent_user_name") || "Chalitha Widusahan";
-    let lastBusinessName = "";
-    let lastResearchProfile = "";
-    let outreachHistory = JSON.parse(localStorage.getItem("autoagent_history") || "[]");
+<!-- ===================== DASHBOARD ===================== -->
+<div id="dashboard" class="hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="logo">Scout<span style="color:var(--brass)">.</span></div>
+      <button class="collapse-btn" onclick="toggleSidebar()" aria-label="Collapse sidebar">‹</button>
+    </div>
+    <div class="nav-items">
+      <button class="nav-item active" id="navHome" onclick="showHomeTab()"><span class="ic">⌂</span><span class="label">Home</span></button>
+      <button class="nav-item" id="navHistory" onclick="showHistoryTab()"><span class="ic">☰</span><span class="label">History</span></button>
+    </div>
+    <div class="sidebar-foot"><span id="userGreeting">Hi</span></div>
+  </aside>
 
-    function toggleSidebar() {
-      const sidebar = document.getElementById("sidebar");
-      const main = document.getElementById("mainContainer");
-      sidebar.classList.toggle("w-64");
-      sidebar.classList.toggle("w-16");
-      main.classList.toggle("ml-64");
-      main.classList.toggle("ml-16");
-      document.querySelectorAll(".sidebar-text").forEach(el => el.classList.toggle("hidden"));
-    }
+  <main class="main">
+    <div class="main-inner" id="homeTab">
+      <h1>Home</h1>
+      <p class="sub">Point it at a niche and a location — it'll take it from there.</p>
 
-    function switchView(view) {
-      document.getElementById("landingPage").classList.add("hidden");
-      document.getElementById("appWorkspace").classList.add("hidden");
-      document.getElementById("historyWorkspace").classList.add("hidden");
-
-      if (view === 'workspace') {
-        document.getElementById("appWorkspace").classList.remove("hidden");
-      } else if (view === 'history') {
-        renderHistory();
-        document.getElementById("historyWorkspace").classList.remove("hidden");
-      }
-    }
-
-    function showLandingPage() {
-      document.getElementById("landingPage").classList.remove("hidden");
-      document.getElementById("appWorkspace").classList.add("hidden");
-      document.getElementById("historyWorkspace").classList.add("hidden");
-    }
-
-    function openOnboardingModal() {
-      document.getElementById("userNameInput").value = currentUserName;
-      document.getElementById("onboardingModal").classList.remove("hidden");
-    }
-
-    function saveOnboardingName() {
-      const input = document.getElementById("userNameInput").value.trim();
-      if (input) {
-        currentUserName = input;
-        localStorage.setItem("autoagent_user_name", currentUserName);
-      }
-      document.getElementById("onboardingModal").classList.add("hidden");
-      document.getElementById("sidebarUserName").innerText = currentUserName;
-      switchView('workspace');
-    }
-
-    function openLightbox(imgId) {
-      const src = document.getElementById(imgId).src;
-      if (src) {
-        document.getElementById('lightboxImg').src = src;
-        document.getElementById('lightboxModal').classList.remove('hidden');
-      }
-    }
-
-    function closeLightbox() {
-      document.getElementById('lightboxModal').classList.add('hidden');
-    }
-
-    document.getElementById("agentForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const niche = document.getElementById("niche").value;
-      const location = document.getElementById("location").value;
-
-      document.getElementById("agentForm").classList.add("opacity-50", "pointer-events-none");
-      document.getElementById("outputWorkspace").classList.add("hidden");
-      document.getElementById("loadingState").classList.remove("hidden");
-
-      try {
-        const response = await fetch(`${API_BASE}/api/start-agent`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ niche, location })
-        });
-
-        const result = await response.json();
-        if (response.ok && result.status === "success") {
-          displayResults(result.data);
-        } else {
-          alert(`Error: ${result.detail || "Failed to execute agent."}`);
-        }
-      } catch (err) {
-        alert("Failed to connect to server.");
-      } finally {
-        document.getElementById("loadingState").classList.add("hidden");
-        document.getElementById("agentForm").classList.remove("opacity-50", "pointer-events-none");
-      }
-    });
-
-    function displayResults(data) {
-      lastBusinessName = data.business_name;
-      lastResearchProfile = data.research_profile;
-
-      document.getElementById("imgForm").src = `${API_BASE}/${data.demo_result.form_screenshot}`;
-      document.getElementById("imgAirtable").src = `${API_BASE}/${data.demo_result.airtable_screenshot}`;
-      document.getElementById("imgEmail").src = `${API_BASE}/${data.demo_result.email_screenshot}`;
-
-      document.getElementById("draftSubject").value = data.draft_subject;
-      let body = data.draft_body.replace("[User Name]", currentUserName).replace("[your name]", currentUserName);
-      document.getElementById("draftBody").value = body;
-      document.getElementById("recipientEmail").value = "cwidusahan@gmail.com";
-
-      currentAttachments = data.attachments;
-      document.getElementById("outputWorkspace").classList.remove("hidden");
-    }
-
-    async function regeneratePitch() {
-      const btn = document.getElementById("regenBtn");
-      btn.innerText = "Regenerating...";
-      btn.disabled = true;
-
-      try {
-        const res = await fetch(`${API_BASE}/api/regenerate-outreach`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ business_name: lastBusinessName, research_profile: lastResearchProfile })
-        });
-
-        const data = await res.json();
-        if (res.ok && data.status === "success") {
-          document.getElementById("draftSubject").value = data.draft_subject;
-          let body = data.draft_body.replace("[User Name]", currentUserName).replace("[your name]", currentUserName);
-          document.getElementById("draftBody").value = body;
-        }
-      } catch (e) {
-        alert("Failed to regenerate pitch.");
-      } finally {
-        btn.innerText = "↻ Regenerate Pitch";
-        btn.disabled = false;
-      }
-    }
-
-    async function sendOutreachEmail() {
-      const btn = document.getElementById("approveBtn");
-      btn.innerText = "Sending...";
-      btn.disabled = true;
-
-      const payload = {
-        recipient_email: document.getElementById("recipientEmail").value,
-        subject: document.getElementById("draftSubject").value,
-        body: document.getElementById("draftBody").value,
-        attachment_paths: currentAttachments
-      };
-
-      try {
-        const res = await fetch(`${API_BASE}/api/send-outreach`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (res.ok && data.status === "success") {
-          alert("Outreach email sent with proof attachments!");
-          
-          // Save to Outreach History
-          outreachHistory.unshift({
-            business_name: lastBusinessName,
-            subject: payload.subject,
-            body: payload.body,
-            date: new Date().toLocaleDateString()
-          });
-          localStorage.setItem("autoagent_history", JSON.stringify(outreachHistory));
-        } else {
-          alert(`Failed: ${data.detail}`);
-        }
-      } catch (err) {
-        alert("Error sending email.");
-      } finally {
-        btn.innerText = "Approve & Send Outreach";
-        btn.disabled = false;
-      }
-    }
-
-    function renderHistory() {
-      const container = document.getElementById("historyContainer");
-      if (outreachHistory.length === 0) {
-        container.innerHTML = `<div class="glass-card rounded-2xl p-8 text-center text-slate-500 text-xs">No outreach campaigns sent yet.</div>`;
-        return;
-      }
-
-      container.innerHTML = outreachHistory.map((item, i) => `
-        <div class="glass-card rounded-2xl p-6 space-y-3">
-          <div class="flex justify-between items-center">
-            <h3 class="text-md font-bold text-white">${item.business_name}</h3>
-            <span class="text-xs text-slate-500">${item.date}</span>
-          </div>
-          <p class="text-xs font-semibold text-indigo-400">Subject: ${item.subject}</p>
-          <pre class="text-xs text-slate-400 bg-black/60 p-4 rounded-xl whitespace-pre-wrap border border-slate-900">${item.body}</pre>
+      <div class="run-panel">
+        <div class="field">
+          <label for="nicheInput">Niche</label>
+          <input type="text" id="nicheInput" placeholder="e.g. flower shops">
         </div>
-      `).join('');
+        <div class="field">
+          <label for="locationInput">Location</label>
+          <input type="text" id="locationInput" placeholder="e.g. Colombo, Sri Lanka">
+        </div>
+        <div class="field">
+          <label for="scaleSelect">Scale</label>
+          <select id="scaleSelect">
+            <option value="small" selected>Small (Local / <10 staff)</option>
+            <option value="medium">Medium (Regional / 10-50 staff)</option>
+            <option value="large">Large (Enterprise / 50+ staff)</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="runScout()" id="runBtn">Run scout</button>
+      </div>
+
+      <div class="status-line" id="statusLine">
+        <div class="spinner"></div>
+        <span id="statusText">Discovering businesses…</span>
+      </div>
+
+      <div class="error-box" id="errorBox"></div>
+
+      <div class="results" id="results">
+        <div class="card">
+          <h2>Target business</h2>
+          <div class="business-name" id="businessName"></div>
+          <div class="profile-text" id="profileText"></div>
+        </div>
+
+        <div class="card">
+          <h2>Proof of the demo</h2>
+          <div class="shots">
+            <div class="shot" onclick="openLightbox('form')"><img id="shotForm" alt="Intake form screenshot"><div class="cap">Intake form</div></div>
+            <div class="shot" onclick="openLightbox('airtable')"><img id="shotAirtable" alt="CRM record screenshot"><div class="cap">CRM record</div></div>
+            <div class="shot" onclick="openLightbox('email')"><img id="shotEmail" alt="Auto-reply email screenshot"><div class="cap">Auto-reply email</div></div>
+          </div>
+        </div>
+
+        <div class="card outreach-card">
+          <h2>Outreach — review before sending</h2>
+          <div class="field" style="margin-top:16px;">
+            <label for="sendTo">Send to</label>
+            <input type="email" id="sendTo" placeholder="business@example.com">
+          </div>
+          <div class="field">
+            <label for="subjectInput">Subject</label>
+            <input type="text" id="subjectInput">
+          </div>
+          <div class="field">
+            <label for="bodyInput">Message</label>
+            <textarea id="bodyInput"></textarea>
+          </div>
+          <div class="outreach-actions">
+            <button class="btn-secondary" onclick="regenerateOutreach()">Regenerate draft</button>
+            <button class="btn-primary" onclick="sendOutreach()" id="sendBtn">Approve &amp; send</button>
+          </div>
+          <div class="sent-note" id="sentNote">Sent.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-inner hidden" id="historyTab">
+      <h1>History</h1>
+      <p class="sub">Every business you've reached out to will show up here.</p>
+      <div class="empty-state">No outreach sent yet. Once you approve and send outreach from Home, it'll appear here.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  let currentData = null;
+  let userName = '';
+  const shotUrls = {};
+
+  // ---- Scroll reveal ----
+  const revealEls = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
+  }, { threshold: 0.15 });
+  revealEls.forEach(el => io.observe(el));
+
+  // ---- Name modal ----
+  function openNameModal() {
+    document.getElementById('nameModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('nameInput').focus(), 50);
+  }
+  function closeNameModal() { document.getElementById('nameModal').classList.add('hidden'); }
+  function enterDashboard() {
+    userName = document.getElementById('nameInput').value.trim() || 'there';
+    document.getElementById('userGreeting').textContent = 'Hi, ' + userName;
+    document.getElementById('nameModal').classList.add('hidden');
+    document.getElementById('landing').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+  }
+
+  // ---- Sidebar & tabs ----
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+  function showHomeTab() {
+    document.getElementById('homeTab').classList.remove('hidden');
+    document.getElementById('historyTab').classList.add('hidden');
+    document.getElementById('navHome').classList.add('active');
+    document.getElementById('navHistory').classList.remove('active');
+  }
+  function showHistoryTab() {
+    document.getElementById('homeTab').classList.add('hidden');
+    document.getElementById('historyTab').classList.remove('hidden');
+    document.getElementById('navHistory').classList.add('active');
+    document.getElementById('navHome').classList.remove('active');
+  }
+
+  // ---- 3D tilt (shared by radar + proof stack) ----
+  function attachTilt(el, strength) {
+    if (!el) return;
+    el.addEventListener('mousemove', (e) => {
+      const rect = el.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      el.style.transform = `rotateY(${x * strength}deg) rotateX(${-y * strength}deg)`;
+    });
+    el.addEventListener('mouseleave', () => { el.style.transform = 'rotateY(0deg) rotateX(0deg)'; });
+  }
+  attachTilt(document.getElementById('radar'), 14);
+  attachTilt(document.getElementById('proofStack'), 8);
+
+  // ---- Lightbox ----
+  function openLightbox(which) {
+    if (!shotUrls[which]) return;
+    const labels = { form: 'Intake form', airtable: 'CRM record', email: 'Auto-reply email' };
+    document.getElementById('lightboxImg').src = shotUrls[which];
+    document.getElementById('lightboxCap').textContent = labels[which];
+    document.getElementById('lightbox').classList.remove('hidden');
+  }
+  function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
+  function closeLightboxOnBackdrop(e) { if (e.target.id === 'lightbox') closeLightbox(); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+
+  // ---- Pipeline run ----
+  const statusMessages = ['Discovering businesses…', 'Researching the pain point…', 'Building the live demo…', 'Drafting your outreach…'];
+
+  function finalizeSignature(body, name) {
+    const stripped = body.replace(/\n*\s*(Best regards|Warm regards|Regards|Sincerely|Thanks|Cheers)[,.]?\s*[\s\S]*$/i, '').trim();
+    return stripped + '\n\nBest regards,\n' + name;
+  }
+
+  async function runScout() {
+    const niche = document.getElementById('nicheInput').value.trim();
+    const location = document.getElementById('locationInput').value.trim();
+    const scale = document.getElementById('scaleSelect').value;
+    const errorBox = document.getElementById('errorBox');
+    const statusLine = document.getElementById('statusLine');
+    const statusText = document.getElementById('statusText');
+    const results = document.getElementById('results');
+    const runBtn = document.getElementById('runBtn');
+
+    errorBox.classList.remove('show');
+    results.classList.remove('show');
+    document.getElementById('sentNote').classList.remove('show');
+
+    if (!niche || !location) {
+      errorBox.textContent = 'Enter both a niche and a location to run the scout.';
+      errorBox.classList.add('show');
+      return;
     }
 
-    document.getElementById("sidebarUserName").innerText = currentUserName;
-  </script>
+    runBtn.disabled = true;
+    statusLine.classList.add('show');
+    let step = 0;
+    statusText.textContent = statusMessages[0];
+    const stepTimer = setInterval(() => {
+      step = Math.min(step + 1, statusMessages.length - 1);
+      statusText.textContent = statusMessages[step];
+    }, 4000);
+
+    try {
+      const res = await fetch('/api/start-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ niche, location, scale })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Something went wrong running the scout.');
+      currentData = data.data;
+      renderResults(currentData);
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+    } finally {
+      clearInterval(stepTimer);
+      statusLine.classList.remove('show');
+      runBtn.disabled = false;
+    }
+  }
+
+  function extractEmail(text) {
+    const match = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+    return match ? match[0] : '';
+  }
+
+  function renderResults(data) {
+    document.getElementById('businessName').textContent = data.business_name;
+    document.getElementById('profileText').textContent = data.research_profile;
+
+    shotUrls.form = '/' + data.demo_result.form_screenshot;
+    shotUrls.airtable = '/' + data.demo_result.airtable_screenshot;
+    shotUrls.email = '/' + data.demo_result.email_screenshot;
+    document.getElementById('shotForm').src = shotUrls.form;
+    document.getElementById('shotAirtable').src = shotUrls.airtable;
+    document.getElementById('shotEmail').src = shotUrls.email;
+
+    document.getElementById('subjectInput').value = data.draft_subject;
+    document.getElementById('bodyInput').value = finalizeSignature(data.draft_body, userName);
+    document.getElementById('sendTo').value = extractEmail(data.research_profile);
+
+    document.getElementById('results').classList.add('show');
+  }
+
+  async function regenerateOutreach() {
+    if (!currentData) return;
+    const res = await fetch('/api/regenerate-outreach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_name: currentData.business_name, research_profile: currentData.research_profile })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('subjectInput').value = data.draft_subject;
+      document.getElementById('bodyInput').value = finalizeSignature(data.draft_body, userName);
+    }
+  }
+
+  async function sendOutreach() {
+    if (!currentData) return;
+    const recipient = document.getElementById('sendTo').value.trim();
+    if (!recipient) { alert('Enter the address to send this to first.'); return; }
+
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    const originalLabel = sendBtn.textContent;
+    sendBtn.textContent = 'Sending…';
+
+    const payload = {
+      recipient_email: recipient,
+      subject: document.getElementById('subjectInput').value,
+      body: document.getElementById('bodyInput').value,
+      attachment_paths: [
+        currentData.demo_result.form_screenshot,
+        currentData.demo_result.airtable_screenshot,
+        currentData.demo_result.email_screenshot
+      ]
+    };
+    try {
+      const res = await fetch('/api/send-outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      const sentNote = document.getElementById('sentNote');
+      if (res.ok) {
+        sentNote.textContent = 'Sent to ' + recipient + '.';
+        sentNote.style.color = 'var(--sage)';
+      } else {
+        sentNote.textContent = data.detail || 'Send failed.';
+        sentNote.style.color = 'var(--danger)';
+      }
+      sentNote.classList.add('show');
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = originalLabel;
+    }
+  }
+</script>
+
 </body>
 </html>

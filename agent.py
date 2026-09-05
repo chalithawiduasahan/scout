@@ -18,11 +18,15 @@ model = BedrockModel(
 TALLY_FORM_URL = os.getenv("TALLY_FORM_URL")
 AIRTABLE_SHARE_URL = os.getenv("AIRTABLE_SHARE_URL")
 
-# ---- Stage 1: Discovery ----
+# ---- Stage 1: Discovery with Scale Criteria ----
 DISCOVERY_SYSTEM_PROMPT = """You are a lead discovery assistant for an automation freelancer.
-Given a business niche and a location, use the tavily_search tool to find 3 REAL,
-currently operating businesses that match. Only include businesses you can verify are real
-based on actual search results — never invent a business.
+Given a business niche, location, and targeted business scale:
+- Small: Single-location independent businesses, boutique shops, or small local operations (<10 staff).
+- Medium: Regional multi-location businesses or medium-sized teams (10-50 staff).
+- Large: National chains, major franchises, or enterprise corporations (50+ staff).
+
+Use the tavily_search tool to find REAL, currently operating businesses matching the requested niche and location.
+Strictly filter candidates based on the scale category requested. If "small" is requested, EXCLUDE large chains or well-known national franchises.
 
 Respond with ONLY a numbered list, one business name per line, in this exact format:
 1. Business Name
@@ -34,8 +38,8 @@ No extra commentary before or after the list.
 
 discovery_agent = Agent(model=model, tools=[tavily_search], system_prompt=DISCOVERY_SYSTEM_PROMPT, callback_handler=None)
 
-async def find_businesses(niche: str, location: str) -> list[str]:
-    query = f"Find businesses in the '{niche}' niche located in {location}."
+async def find_businesses(niche: str, location: str, scale: str = "small") -> list[str]:
+    query = f"Find {scale}-scale businesses in the '{niche}' niche located in {location}."
     response = await discovery_agent.invoke_async(query)
     text = str(response)
     names = []
@@ -143,31 +147,14 @@ def submit_demo_form_sync(name: str, email: str, inquiry: str, screenshot_path: 
         page = browser.new_page()
         page.goto(TALLY_FORM_URL)
         page.wait_for_selector('input', timeout=5000)
-        
-        # Explicit input targeting to prevent text bleeding across fields
-        inputs = page.query_selector_all('input[type="text"], input:not([type])')
-        if len(inputs) >= 1:
-            inputs[0].fill(name)
-            
-        email_inputs = page.query_selector_all('input[type="email"]')
-        if len(email_inputs) >= 1:
-            email_inputs[0].fill(email)
-            
-        textareas = page.query_selector_all('textarea')
-        if len(textareas) >= 1:
-            textareas[0].fill(inquiry)
-        else:
-            # Fallback if form uses text input for inquiry
-            if len(inputs) >= 2:
-                inputs[1].fill(inquiry)
+
+        page.get_by_label("Name").fill(name)
+        page.get_by_label("Email").fill(email)
+        page.get_by_label("Inquiry").fill(inquiry)
 
         page.screenshot(path=screenshot_path, full_page=True)
-        
-        submit_btn = page.query_selector('button[type="submit"]') or page.get_by_role("button", name="Submit")
-        if submit_btn:
-            submit_btn.click()
-            page.wait_for_timeout(2000)
-            
+        page.get_by_role("button", name="Submit").click()
+        page.wait_for_timeout(2000)
         browser.close()
 
 def screenshot_airtable_sync(screenshot_path: str):
@@ -176,6 +163,11 @@ def screenshot_airtable_sync(screenshot_path: str):
         page = browser.new_page()
         page.goto(AIRTABLE_SHARE_URL)
         page.wait_for_timeout(2000)
+        try:
+            page.get_by_role("button", name="Reject All, Except Strictly Necessary").click(timeout=3000)
+        except Exception:
+            pass
+        page.wait_for_timeout(500)
         page.screenshot(path=screenshot_path, full_page=True)
         browser.close()
 
@@ -242,22 +234,20 @@ async def build_real_demo(business_name: str, research_profile: str) -> dict:
         "email_screenshot": email_screenshot,
     }
 
-# ---- Stage 4: High-Converting Outreach Pitch Drafting ----
-OUTREACH_SYSTEM_PROMPT = """You are an elite B2B automation strategist writing a personal, high-converting cold pitch to a business owner.
+# ---- Stage 4: Short & High-Converting Pitch Drafting ----
+OUTREACH_SYSTEM_PROMPT = """You are an elite B2B automation freelancer writing a quick, high-converting cold email to a business owner.
 
-Given the business name and research profile, write a compelling, concise email following this exact structure:
-1. Warm, specific opening acknowledging their work.
-2. Highlight a key operational bottleneck (e.g. manually answering inquiries / logging lead records).
-3. Introduce the solution: Explain that you built a live functional prototype tailored specifically for their business that captures inquiries, logs them into a database, and sends instant automated responses.
-4. Reference the 3 attached visual proof screenshots:
-   - Form intake submission
-   - Real-time CRM logging
-   - Automated response email
-5. Explain the tangible benefit (saves 5-10 hours/week, zero missed leads).
-6. Soft Call-to-Action: Ask if they have 5-10 minutes for a quick live demo call or if there are other manual tasks they want to automate.
+Keep the email SHORT, warm, and natural (under 100 words total).
 
-IMPORTANT RULES:
-- Do NOT use markdown asterisks (no **bold** or *italic*). Output pure plain text only.
+Structure:
+1. Short, friendly opening referencing their business.
+2. Mention that manual customer follow-ups and lead logging often take up hours of time.
+3. State that you built a quick functional automation prototype for them (referencing the 3 attached screenshots: Form, Real-time CRM log, and Auto-reply email).
+4. Direct soft CTA: Ask if they have 5 minutes for a quick demo call or want to automate other manual tasks.
+
+RULES:
+- Do NOT use markdown formatting like asterisks (**bold** or *italic*). Output pure plain text only.
+- Keep sentences short and direct.
 - End the sign-off strictly with:
 Best regards,
 [User Name]
@@ -274,17 +264,15 @@ async def draft_outreach_pitch(business_name: str, research_profile: str) -> tup
     response = await outreach_agent.invoke_async(prompt)
     res_str = str(response).strip()
 
-    subject = f"Quick idea for {business_name} — automating client inquiry responses"
+    subject = f"Quick automation concept for {business_name}"
     body = (
         f"Hi,\n\n"
-        f"I've been looking into {business_name}'s operations and noticed your team is likely spending hours manually responding to incoming client inquiries and logging customer data.\n\n"
-        f"I built a working prototype tailored specifically for {business_name} that automates this entire workflow. See the 3 screenshots attached:\n\n"
-        f"1. Automated intake form capturing inquiry details\n"
-        f"2. CRM database logging lead details in real-time\n"
-        f"3. Instant auto-reply email acknowledging customer inquiries\n\n"
-        f"This frees your team from repetitive responses so you can focus on core client work.\n\n"
-        f"Would love to show you this live on a quick 5-10 minute call, or explore other manual tasks your team handles.\n\n"
-        f"Let me know what works for you.\n\n"
+        f"I came across {business_name} and put together a quick live prototype to automate your client intake and follow-ups.\n\n"
+        f"I attached 3 quick screenshots showing how it works:\n"
+        f"1. Intake form for instant customer details\n"
+        f"2. Automated CRM record creation\n"
+        f"3. Instant custom email response\n\n"
+        f"This saves 5-10 hours a week on repetitive follow-ups. Would you be open to a 5-minute call this week to see it live?\n\n"
         f"Best regards,\n[User Name]"
     )
 

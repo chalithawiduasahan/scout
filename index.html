@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoAgent | Autonomous Pitching & Proof Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #000000; }
+    .glass-card {
+      background: rgba(10, 10, 12, 0.85);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .glass-card-hover:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.15);
+    }
+    .grid-bg {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+  </style>
+</head>
+<body class="bg-black text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white flex overflow-x-hidden">
+
+  <!-- Retractable Navigation Sidebar -->
+  <aside id="sidebar" class="w-64 bg-black border-r border-slate-900 min-h-screen flex flex-col transition-all duration-300 z-30 fixed left-0 top-0 bottom-0">
+    <div class="p-6 border-b border-slate-900 flex items-center justify-between">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="showLandingPage()">
+        <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-white text-base shadow-lg shadow-indigo-600/50">
+          A
+        </div>
+        <span class="sidebar-text font-black text-lg tracking-tight text-white">AutoAgent</span>
+      </div>
+      <button onclick="toggleSidebar()" class="text-slate-500 hover:text-white text-xs p-1">
+        ◀
+      </button>
+    </div>
+
+    <nav class="flex-1 p-4 space-y-2">
+      <button onclick="switchView('workspace')" id="navWorkspace" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-indigo-400 bg-indigo-950/40 border border-indigo-800/40 transition">
+        <span>⚡</span>
+        <span class="sidebar-text">Agent Pipeline</span>
+      </button>
+      <button onclick="switchView('history')" id="navHistory" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-900 transition">
+        <span>📂</span>
+        <span class="sidebar-text">Outreach History</span>
+      </button>
+    </nav>
+
+    <div class="p-4 border-t border-slate-900 space-y-2">
+      <div class="sidebar-text text-[11px] text-slate-500">OPERATING AS:</div>
+      <div id="sidebarUserName" class="sidebar-text text-xs font-bold text-slate-300 truncate"></div>
+      <button onclick="openOnboardingModal()" class="sidebar-text text-[11px] text-indigo-400 hover:underline">Edit Name</button>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <div id="mainContainer" class="flex-1 ml-64 transition-all duration-300 min-h-screen flex flex-col grid-bg">
+    
+    <!-- Top Header -->
+    <header class="border-b border-slate-900 bg-black/80 backdrop-blur sticky top-0 px-8 py-4 flex justify-between items-center z-20">
+      <div class="flex items-center space-x-3">
+        <span class="text-xs font-mono text-slate-500">HACKATHON BUILD • AGENTS FOR HUMANS</span>
+      </div>
+      <button onclick="showLandingPage()" class="text-xs font-semibold px-4 py-2 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-300 transition">
+        Landing Page
+      </button>
+    </header>
+
+    <!-- VIEW 1: LANDING PAGE -->
+    <div id="landingPage" class="transition-all duration-500">
+      <section class="max-w-5xl mx-auto px-6 pt-24 pb-16 text-center space-y-8">
+        <div class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs font-semibold text-indigo-400">
+          <span class="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+          <span>Autonomous Outreach Engine with Proof Screenshots</span>
+        </div>
+
+        <h1 class="text-6xl md:text-8xl font-black tracking-tight text-white leading-none">
+          Stop Pitching.<br />
+          <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-500">
+            Send Live Proof.
+          </span>
+        </h1>
+
+        <p class="text-lg text-slate-400 max-w-2xl mx-auto font-light leading-relaxed">
+          AutoAgent finds local businesses, identifies operational pain points, automatically generates a working prototype demo, captures Playwright visual proofs, and drafts high-converting outreach for human approval.
+        </p>
+
+        <div class="pt-6">
+          <button onclick="openOnboardingModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-base px-10 py-4 rounded-2xl transition shadow-xl shadow-indigo-600/40 transform hover:-translate-y-1">
+            Launch Agent Engine
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- VIEW 2: WORKSPACE -->
+    <div id="appWorkspace" class="hidden max-w-6xl w-full mx-auto p-8 space-y-8">
+      
+      <!-- Input Panel -->
+      <section class="glass-card rounded-2xl p-6 space-y-4">
+        <h2 class="text-lg font-bold text-white">Target Lead Criteria</h2>
+        <form id="agentForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 mb-1">Niche</label>
+            <input type="text" id="niche" placeholder="e.g., event planners" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 mb-1">Location</label>
+            <input type="text" id="location" placeholder="e.g., Colombo, Sri Lanka" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition" />
+          </div>
+          <div class="flex items-end">
+            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl text-sm transition shadow-lg shadow-indigo-600/30">
+              Run Agent Pipeline
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Loading Indicator -->
+      <div id="loadingState" class="hidden glass-card rounded-2xl p-16 text-center space-y-6">
+        <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p class="text-sm font-semibold text-slate-300">Agent is executing research & building proof screenshots...</p>
+      </div>
+
+      <!-- Results & Human Review -->
+      <div id="outputWorkspace" class="hidden space-y-8">
+        
+        <!-- Screenshots -->
+        <section class="space-y-4">
+          <h3 class="text-md font-bold text-slate-200">Captured Proof Screenshots</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-card glass-card-hover rounded-2xl p-4 space-y-3 cursor-pointer" onclick="openLightbox('imgForm')">
+              <span class="text-xs font-semibold text-slate-400">1. Intake Form Intake 🔍</span>
+              <img id="imgForm" class="rounded-xl border border-slate-800 w-full h-48 object-cover bg-black" />
+            </div>
+            <div class="glass-card glass-card-hover rounded-2xl p-4 space-y-3 cursor-pointer" onclick="openLightbox('imgAirtable')">
+              <span class="text-xs font-semibold text-slate-400">2. Airtable CRM Logging 🔍</span>
+              <img id="imgAirtable" class="rounded-xl border border-slate-800 w-full h-48 object-cover bg-black" />
+            </div>
+            <div class="glass-card glass-card-hover rounded-2xl p-4 space-y-3 cursor-pointer" onclick="openLightbox('imgEmail')">
+              <span class="text-xs font-semibold text-slate-400">3. Automated Response Email 🔍</span>
+              <img id="imgEmail" class="rounded-xl border border-slate-800 w-full h-48 object-cover bg-black" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Human Review Box -->
+        <section class="glass-card rounded-2xl p-8 space-y-6 border border-indigo-500/30">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <h3 class="text-lg font-bold text-white">Review Outreach Pitch</h3>
+            <button onclick="regeneratePitch()" id="regenBtn" class="text-xs font-bold text-indigo-400 border border-indigo-800 px-3 py-1.5 rounded-lg hover:bg-indigo-950 transition">
+              ↻ Regenerate Pitch
+            </button>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Recipient Email</label>
+              <input type="email" id="recipientEmail" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Subject</label>
+              <input type="text" id="draftSubject" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-400 mb-1">Email Body</label>
+              <textarea id="draftBody" rows="7" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 leading-relaxed"></textarea>
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button id="approveBtn" onclick="sendOutreachEmail()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl text-sm transition shadow-lg shadow-emerald-600/30">
+              Approve & Send Outreach
+            </button>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- VIEW 3: OUTREACH HISTORY LEDGER -->
+    <div id="historyWorkspace" class="hidden max-w-6xl w-full mx-auto p-8 space-y-6">
+      <h2 class="text-xl font-bold text-white">Outreach History & Campaign Ledger</h2>
+      <p class="text-xs text-slate-400">Review past business research, generated pitches, and visual proof assets.</p>
+
+      <div id="historyContainer" class="space-y-4">
+        <!-- Dynamically Populated -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ONBOARDING MODAL -->
+  <div id="onboardingModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="glass-card rounded-3xl p-8 max-w-md w-full space-y-6 border border-indigo-500/30">
+      <div class="text-center space-y-2">
+        <h3 class="text-2xl font-black text-white">Welcome to AutoAgent</h3>
+        <p class="text-xs text-slate-400">Enter your name so the agent can personalize your cold pitch signatures.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Your Full Name</label>
+        <input type="text" id="userNameInput" placeholder="e.g., Chalitha Widusahan" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500" />
+      </div>
+      <button onclick="saveOnboardingName()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-sm transition">
+        Continue to Workspace
+      </button>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX MODAL -->
+  <div id="lightboxModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/95 backdrop-blur-xl cursor-pointer" onclick="closeLightbox()">
+    <img id="lightboxImg" class="rounded-2xl border border-slate-800 max-h-[85vh] object-contain shadow-2xl" />
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:8000";
+    let currentAttachments = [];
+    let currentUserName = localStorage.getItem("autoagent_user_name") || "Chalitha Widusahan";
+    let lastBusinessName = "";
+    let lastResearchProfile = "";
+    let outreachHistory = JSON.parse(localStorage.getItem("autoagent_history") || "[]");
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById("sidebar");
+      const main = document.getElementById("mainContainer");
+      sidebar.classList.toggle("w-64");
+      sidebar.classList.toggle("w-16");
+      main.classList.toggle("ml-64");
+      main.classList.toggle("ml-16");
+      document.querySelectorAll(".sidebar-text").forEach(el => el.classList.toggle("hidden"));
+    }
+
+    function switchView(view) {
+      document.getElementById("landingPage").classList.add("hidden");
+      document.getElementById("appWorkspace").classList.add("hidden");
+      document.getElementById("historyWorkspace").classList.add("hidden");
+
+      if (view === 'workspace') {
+        document.getElementById("appWorkspace").classList.remove("hidden");
+      } else if (view === 'history') {
+        renderHistory();
+        document.getElementById("historyWorkspace").classList.remove("hidden");
+      }
+    }
+
+    function showLandingPage() {
+      document.getElementById("landingPage").classList.remove("hidden");
+      document.getElementById("appWorkspace").classList.add("hidden");
+      document.getElementById("historyWorkspace").classList.add("hidden");
+    }
+
+    function openOnboardingModal() {
+      document.getElementById("userNameInput").value = currentUserName;
+      document.getElementById("onboardingModal").classList.remove("hidden");
+    }
+
+    function saveOnboardingName() {
+      const input = document.getElementById("userNameInput").value.trim();
+      if (input) {
+        currentUserName = input;
+        localStorage.setItem("autoagent_user_name", currentUserName);
+      }
+      document.getElementById("onboardingModal").classList.add("hidden");
+      document.getElementById("sidebarUserName").innerText = currentUserName;
+      switchView('workspace');
+    }
+
+    function openLightbox(imgId) {
+      const src = document.getElementById(imgId).src;
+      if (src) {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('lightboxModal').classList.remove('hidden');
+      }
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightboxModal').classList.add('hidden');
+    }
+
+    document.getElementById("agentForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const niche = document.getElementById("niche").value;
+      const location = document.getElementById("location").value;
+
+      document.getElementById("agentForm").classList.add("opacity-50", "pointer-events-none");
+      document.getElementById("outputWorkspace").classList.add("hidden");
+      document.getElementById("loadingState").classList.remove("hidden");
+
+      try {
+        const response = await fetch(`${API_BASE}/api/start-agent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ niche, location })
+        });
+
+        const result = await response.json();
+        if (response.ok && result.status === "success") {
+          displayResults(result.data);
+        } else {
+          alert(`Error: ${result.detail || "Failed to execute agent."}`);
+        }
+      } catch (err) {
+        alert("Failed to connect to server.");
+      } finally {
+        document.getElementById("loadingState").classList.add("hidden");
+        document.getElementById("agentForm").classList.remove("opacity-50", "pointer-events-none");
+      }
+    });
+
+    function displayResults(data) {
+      lastBusinessName = data.business_name;
+      lastResearchProfile = data.research_profile;
+
+      document.getElementById("imgForm").src = `${API_BASE}/${data.demo_result.form_screenshot}`;
+      document.getElementById("imgAirtable").src = `${API_BASE}/${data.demo_result.airtable_screenshot}`;
+      document.getElementById("imgEmail").src = `${API_BASE}/${data.demo_result.email_screenshot}`;
+
+      document.getElementById("draftSubject").value = data.draft_subject;
+      let body = data.draft_body.replace("[User Name]", currentUserName).replace("[your name]", currentUserName);
+      document.getElementById("draftBody").value = body;
+      document.getElementById("recipientEmail").value = "cwidusahan@gmail.com";
+
+      currentAttachments = data.attachments;
+      document.getElementById("outputWorkspace").classList.remove("hidden");
+    }
+
+    async function regeneratePitch() {
+      const btn = document.getElementById("regenBtn");
+      btn.innerText = "Regenerating...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/regenerate-outreach`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ business_name: lastBusinessName, research_profile: lastResearchProfile })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.status === "success") {
+          document.getElementById("draftSubject").value = data.draft_subject;
+          let body = data.draft_body.replace("[User Name]", currentUserName).replace("[your name]", currentUserName);
+          document.getElementById("draftBody").value = body;
+        }
+      } catch (e) {
+        alert("Failed to regenerate pitch.");
+      } finally {
+        btn.innerText = "↻ Regenerate Pitch";
+        btn.disabled = false;
+      }
+    }
+
+    async function sendOutreachEmail() {
+      const btn = document.getElementById("approveBtn");
+      btn.innerText = "Sending...";
+      btn.disabled = true;
+
+      const payload = {
+        recipient_email: document.getElementById("recipientEmail").value,
+        subject: document.getElementById("draftSubject").value,
+        body: document.getElementById("draftBody").value,
+        attachment_paths: currentAttachments
+      };
+
+      try {
+        const res = await fetch(`${API_BASE}/api/send-outreach`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok && data.status === "success") {
+          alert("Outreach email sent with proof attachments!");
+          
+          // Save to Outreach History
+          outreachHistory.unshift({
+            business_name: lastBusinessName,
+            subject: payload.subject,
+            body: payload.body,
+            date: new Date().toLocaleDateString()
+          });
+          localStorage.setItem("autoagent_history", JSON.stringify(outreachHistory));
+        } else {
+          alert(`Failed: ${data.detail}`);
+        }
+      } catch (err) {
+        alert("Error sending email.");
+      } finally {
+        btn.innerText = "Approve & Send Outreach";
+        btn.disabled = false;
+      }
+    }
+
+    function renderHistory() {
+      const container = document.getElementById("historyContainer");
+      if (outreachHistory.length === 0) {
+        container.innerHTML = `<div class="glass-card rounded-2xl p-8 text-center text-slate-500 text-xs">No outreach campaigns sent yet.</div>`;
+        return;
+      }
+
+      container.innerHTML = outreachHistory.map((item, i) => `
+        <div class="glass-card rounded-2xl p-6 space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-md font-bold text-white">${item.business_name}</h3>
+            <span class="text-xs text-slate-500">${item.date}</span>
+          </div>
+          <p class="text-xs font-semibold text-indigo-400">Subject: ${item.subject}</p>
+          <pre class="text-xs text-slate-400 bg-black/60 p-4 rounded-xl whitespace-pre-wrap border border-slate-900">${item.body}</pre>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById("sidebarUserName").innerText = currentUserName;
+  </script>
+</body>
+</html>

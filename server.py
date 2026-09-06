@@ -1,11 +1,13 @@
 import os
+import random
 import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
+from supabase import create_client, Client
 
 from agent import find_businesses, research_business, build_real_demo, draft_outreach_pitch
 from tools.outreach import send_email_with_attachments
@@ -23,68 +25,90 @@ app.add_middleware(
 os.makedirs("screenshots", exist_ok=True)
 app.mount("/screenshots", StaticFiles(directory="screenshots"), name="screenshots")
 
+# Initialize Supabase Client securely on the backend
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase: Optional[Client] = create_client(supabase_url, supabase_key) if supabase_url and supabase_key else None
+
 class ResearchRequest(BaseModel):
+    user_name: str
     niche: str
     location: str
     scale: str = "small"
+    count: int = 1
 
 class RegenerateRequest(BaseModel):
     business_name: str
     research_profile: str
 
 class SendOutreachRequest(BaseModel):
+    user_name: str
+    niche: str
+    location: str
+    scale: str
     recipient_email: str
     subject: str
     body: str
-    attachment_paths: List[str]
+    business_name: str
+    form_screenshot: str
+    airtable_screenshot: str
+    email_screenshot: str
+    slack_screenshot: Optional[str] = None
 
 @app.get("/")
-async def serve_index():
-    return FileResponse("index.html")
+async def root():
+    return {"message": "Scout API is running!"}
 
 @app.post("/api/start-agent")
 async def start_agent_pipeline(request: ResearchRequest):
     try:
-        print(f"\n--- API Request Received: Niche='{request.niche}', Location='{request.location}', Scale='{request.scale}' ---")
+        print(f"\n--- API Request Received: User='{request.user_name}', Niche='{request.niche}', Location='{request.location}', Scale='{request.scale}', Count={request.count} ---")
         
-        # 1. Discover
+        excluded_businesses = []
+        if supabase:
+            history_res = supabase.table("outreach_history").select("business_name").eq("user_name", request.user_name).execute()
+            if history_res.data:
+                excluded_businesses = [item["business_name"] for item in history_res.data]
+                print(f"Excluding previously contacted businesses for {request.user_name}: {excluded_businesses}")
+
         print("Finding targeted businesses...")
-        businesses = await find_businesses(request.niche, request.location, request.scale)
+        businesses = await find_businesses(request.niche, request.location, request.scale, excluded_businesses)
         if not businesses:
-            raise HTTPException(status_code=404, detail="No businesses found matching these criteria.")
+            raise HTTPException(status_code=404, detail="No new businesses found matching these criteria (all potential matches were previously contacted by you).")
         
-        target_business = businesses[0]
-        print(f"Target business selected: {target_business}")
-        
-        # 2. Research
-        print("Researching business profile...")
-        profile = await research_business(target_business)
-        
-        # 3. Build Demo
-        print("Building live demo & capturing screenshots...")
-        demo_result = await build_real_demo(target_business, profile)
-        
-        # 4. Draft Pitch
-        print("Drafting high-converting outreach pitch...")
-        subject, body = await draft_outreach_pitch(target_business, profile)
-        
-        attachments = [
-            demo_result["form_screenshot"],
-            demo_result["airtable_screenshot"],
-            demo_result["email_screenshot"]
-        ]
-        
-        print("--- Pipeline Finished Successfully! ---")
-        return {
-            "status": "success",
-            "data": {
+        run_count = min(request.count, len(businesses))
+        batch_results = []
+        available_pool = list(businesses)
+
+        for i in range(run_count):
+            if not available_pool:
+                break
+            
+            target_business = random.choice(available_pool)
+            available_pool.remove(target_business)
+            print(f"[{i+1}/{run_count}] Target business selected (Random): {target_business}")
+            
+            print(f"Researching business profile for {target_business}...")
+            profile = await research_business(target_business, request.location)
+            
+            print(f"Building live demo & capturing screenshots for {target_business}...")
+            demo_result = await build_real_demo(target_business, profile)
+            
+            print(f"Drafting high-converting outreach pitch for {target_business}...")
+            subject, body = await draft_outreach_pitch(target_business, profile)
+            
+            batch_results.append({
                 "business_name": target_business,
                 "research_profile": profile,
                 "demo_result": demo_result,
                 "draft_subject": subject,
                 "draft_body": body,
-                "attachments": attachments
-            }
+            })
+
+        print("--- Pipeline Batch Finished Successfully! ---")
+        return {
+            "status": "success",
+            "data": batch_results
         }
     except Exception as e:
         print("ERROR IN PIPELINE:")
@@ -107,15 +131,57 @@ async def regenerate_outreach(request: RegenerateRequest):
 @app.post("/api/send-outreach")
 async def send_outreach(request: SendOutreachRequest):
     try:
+        attachments = [
+            request.form_screenshot,
+            request.airtable_screenshot,
+            request.email_screenshot
+        ]
+        if request.slack_screenshot:
+            attachments.append(request.slack_screenshot)
+
         status = send_email_with_attachments(
             to_email=request.recipient_email,
             subject=request.subject,
             body=request.body,
-            attachment_paths=request.attachment_paths
+            attachment_paths=attachments
         )
+
+        if supabase:
+            supabase.table("outreach_history").insert({
+                "user_name": request.user_name,
+                "business_name": request.business_name,
+                "niche": request.niche,
+                "location": request.location,
+                "scale": request.scale,
+                "recipient_email": request.recipient_email,
+                "subject": request.subject,
+                "body": request.body,
+                "form_screenshot": request.form_screenshot,
+                "airtable_screenshot": request.airtable_screenshot,
+                "email_screenshot": request.email_screenshot,
+                "slack_screenshot": request.slack_screenshot,
+            }).execute()
+
         return {"status": "success", "message": status}
     except Exception as e:
         print("ERROR SENDING OUTREACH:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/history")
+async def get_history(user_name: Optional[str] = None):
+    try:
+        if not supabase:
+            return {"status": "success", "data": []}
+        
+        query = supabase.table("outreach_history").select("*").order("created_at", desc=True)
+        if user_name:
+            query = query.eq("user_name", user_name)
+            
+        response = query.execute()
+        return {"status": "success", "data": response.data}
+    except Exception as e:
+        print("ERROR FETCHING HISTORY:")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 

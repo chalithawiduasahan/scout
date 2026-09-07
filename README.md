@@ -2,7 +2,7 @@
 
 **Scout** is an autonomous AI agent that finds real small businesses, researches their pain points, builds a *real, working automation prototype* for them on the spot, and drafts a personalized cold outreach email with visual proof attached — all with a human approving the final send.
 
-Built for the AWS **"Agents for Humans"** hackathon.
+Built for the **"Agents for Humans"** hackathon.
 
 🔗 **Live app:** [ai-scout-agent.vercel.app](https://ai-scout-agent.vercel.app/)
 

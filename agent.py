@@ -7,7 +7,7 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands_tools.tavily import tavily_search
 from playwright.sync_api import sync_playwright
-from tools.crm import save_lead_now, archive_lead_now
+from tools.crm import save_lead_now, archive_lead_now, cleanup_stray_new_leads
 from tools.outreach import send_email_with_attachments
 from tools.slack import send_slack_lead_notification
 
@@ -180,10 +180,16 @@ def screenshot_airtable_sync(screenshot_path: str):
         # before we screenshot it, since domcontentloaded fires early.
         page.wait_for_timeout(4000)
         try:
-            page.get_by_role("button", name="Reject All, Except Strictly Necessary").click(timeout=3000)
+            # Wait for the cookie banner button to actually appear (up to 8s)
+            # before trying to click it, instead of clicking immediately.
+            # On a slower host, the banner can take longer to show up than it
+            # did locally, so clicking too early silently misses it.
+            reject_button = page.get_by_role("button", name="Reject All, Except Strictly Necessary")
+            reject_button.wait_for(state="visible", timeout=8000)
+            reject_button.click()
+            page.wait_for_timeout(500)
         except Exception:
             pass
-        page.wait_for_timeout(500)
         page.screenshot(path=screenshot_path, full_page=True)
         browser.close()
 
@@ -279,6 +285,11 @@ async def build_real_demo(business_name: str, research_profile: str) -> dict:
     form_screenshot = f"screenshots/{safe_name}_form.png"
     await asyncio.to_thread(submit_demo_form_sync, name, fake_email, inquiry, form_screenshot)
     record_id = save_lead_now(name, fake_email, inquiry)
+
+    # Safety net: sweep away any leftover "New" leads from a previous run
+    # that crashed before it could archive itself, so the Airtable screenshot
+    # only ever shows the one lead we just created.
+    await asyncio.to_thread(cleanup_stray_new_leads, record_id)
 
     airtable_screenshot = f"screenshots/{safe_name}_airtable.png"
     await asyncio.to_thread(screenshot_airtable_sync, airtable_screenshot)

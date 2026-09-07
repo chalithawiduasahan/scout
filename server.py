@@ -185,6 +185,16 @@ async def get_history(user_name: Optional[str] = None):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+# Serve static frontend files if built by Docker
+if os.path.exists("static"):
+    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        if full_path.startswith("api/") or full_path.startswith("screenshots/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse("static/index.html")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

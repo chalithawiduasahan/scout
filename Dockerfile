@@ -1,50 +1,31 @@
-FROM python:3.11-slim
+# ---- Stage 1: Build the React Frontend ----
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app/project
+COPY project/package*.json ./
+RUN npm install
+COPY project/ ./
+RUN npm run build
+
+# ---- Stage 2: Python Backend + Playwright + Combined Server ----
+FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
 WORKDIR /app
 
-# Install system dependencies required by Playwright and other tools
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libexpat1 \
-    libfontconfig1 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libx11-6 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm-dev \
-    fonts-liberation \
-    libappindicator3-1 \
-    libu2f-udev \
-    xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy and install Python dependencies
+# Copy and install Python backend dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (Chromium)
-RUN playwright install chromium && playwright install-deps chromium
+# Ensure Playwright browser binaries and all required OS packages are fully mapped
+RUN playwright install chromium
 
-# Copy application code
+# Copy the rest of the root backend code files
 COPY . .
 
-# Create screenshots directory
-RUN mkdir -p /app/screenshots
+# Copy the compiled React build files from Stage 1 into the /app/static folder
+COPY --from=frontend-builder /app/project/dist /app/static
 
-# Run the FastAPI application
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render injects the runtime port via the $PORT environment variable
+EXPOSE 8000
+
+# Start FastAPI/Uvicorn binding to the dynamic port
+CMD uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}

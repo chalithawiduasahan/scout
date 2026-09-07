@@ -131,7 +131,7 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   const [lightbox, setLightbox] = useState<{ url: string; cap: string } | null>(null);
 
-  const API_BASE = 'http://localhost:8000';
+  const API_BASE = '';
 
   useEffect(() => {
     fetchHistory();
@@ -293,7 +293,7 @@ export default function Dashboard({ userName }: { userName: string }) {
           <button onClick={() => setLightbox(null)} className="absolute right-6 top-6 rounded-full p-2 hover:bg-white/10">
             <X className="h-8 w-8 text-white" />
           </button>
-          <img src={lightbox.url} alt="Screenshot" className="max-h-[80vh] max-w-[95vw] rounded-xl border border-white/10 shadow-2xl object-contain" />
+          <img src={`${API_BASE}/${lightbox.url.replace(/^\//, '')}`} alt="Screenshot" className="max-h-[80vh] max-w-[95vw] rounded-xl border border-white/10 shadow-2xl object-contain" />
           <p className="mt-4 font-medium text-ink-300 text-center">{lightbox.cap}</p>
         </div>
       )}

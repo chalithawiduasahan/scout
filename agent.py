@@ -19,6 +19,14 @@ model = BedrockModel(
 TALLY_FORM_URL = os.getenv("TALLY_FORM_URL")
 AIRTABLE_SHARE_URL = os.getenv("AIRTABLE_SHARE_URL")
 
+# Chromium launch args needed for hosted containers like Render.
+# --disable-dev-shm-usage: containers give Chromium very little shared memory by
+#   default, which can make it hang or crash on heavy pages. This makes Chromium
+#   use disk instead of shared memory.
+# --no-sandbox: Chromium's normal sandboxing needs OS permissions that hosted
+#   containers usually don't grant, so it must be disabled to launch at all.
+CHROMIUM_ARGS = ["--disable-dev-shm-usage", "--no-sandbox"]
+
 # ---- Stage 1: Discovery with Scale Criteria & Exclusions ----
 DISCOVERY_SYSTEM_PROMPT = """You are a lead discovery assistant for an automation freelancer.
 Given a business niche, location, targeted business scale, and a list of businesses to exclude:
@@ -89,7 +97,7 @@ async def invent_demo_lead(business_name: str, research_profile: str) -> tuple[s
     prompt = f"Business: {business_name}\n\nResearch findings:\n{research_profile}"
     response = await demo_lead_agent.invoke_async(prompt)
     name, email, inquiry = "Sarah Mitchell", "sarah.mitchell@outlook.com", f"Hi, I would like to inquire about your availability and package options for an upcoming booking with {business_name}."
-    
+
     for line in str(response).strip().split("\n"):
         line = line.strip()
         if line.startswith("NAME:"):
@@ -101,7 +109,7 @@ async def invent_demo_lead(business_name: str, research_profile: str) -> tuple[s
         elif line.startswith("INQUIRY:"):
             parsed_inquiry = line.replace("INQUIRY:", "").strip()
             if parsed_inquiry: inquiry = parsed_inquiry
-            
+
     return name, email, inquiry
 
 DEMO_REPLY_SYSTEM_PROMPT = """You are drafting an automated reply email as if you ARE the business
@@ -127,7 +135,7 @@ async def draft_demo_reply(business_name: str, research_profile: str, customer_n
     )
     response = await demo_reply_agent.invoke_async(prompt)
     res_str = str(response).strip()
-    
+
     subject = f"Thank you for reaching out to {business_name}!"
     body = f"Hi {customer_name},\n\nThank you for reaching out to {business_name}.\n\nWe received your inquiry regarding:\n\"{inquiry}\"\n\nOur team is reviewing your details and will follow up with you shortly.\n\nBest regards,\n{business_name} Customer Support"
 
@@ -146,10 +154,10 @@ async def draft_demo_reply(business_name: str, research_profile: str, customer_n
 # ---- Synchronous Playwright Helpers ----
 def submit_demo_form_sync(name: str, email: str, inquiry: str, screenshot_path: str):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
         page = browser.new_page()
-        page.goto(TALLY_FORM_URL)
-        page.wait_for_selector('input', timeout=5000)
+        page.goto(TALLY_FORM_URL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_selector('input', timeout=15000)
 
         page.get_by_label("Name").fill(name)
         page.get_by_label("Email").fill(email)
@@ -162,10 +170,15 @@ def submit_demo_form_sync(name: str, email: str, inquiry: str, screenshot_path: 
 
 def screenshot_airtable_sync(screenshot_path: str):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
         page = browser.new_page()
-        page.goto(AIRTABLE_SHARE_URL)
-        page.wait_for_timeout(2000)
+        # domcontentloaded (instead of the default "load") + a longer timeout,
+        # because Airtable's page keeps background network activity running
+        # forever, so the "load" event can be very slow or never fire cleanly.
+        page.goto(AIRTABLE_SHARE_URL, wait_until="domcontentloaded", timeout=60000)
+        # Extra pause so Airtable's grid has time to actually render visually
+        # before we screenshot it, since domcontentloaded fires early.
+        page.wait_for_timeout(4000)
         try:
             page.get_by_role("button", name="Reject All, Except Strictly Necessary").click(timeout=3000)
         except Exception:
@@ -200,7 +213,7 @@ def screenshot_email_sync(subject: str, body: str, screenshot_path: str):
     </html>
     """
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
         page = browser.new_page()
         page.set_content(html_content)
         page.wait_for_timeout(500)
@@ -236,7 +249,7 @@ def screenshot_slack_sync(business_name: str, customer_name: str, customer_email
             <div class="slack-body">
                 <div class="alert-title">🚨 New Potential Lead Captured for {business_name}!</div>
                 <p style="margin: 0 0 12px 0;">A prospective client just submitted your contact form.</p>
-                
+
                 <div class="field-group">
                     <div class="field-label">Prospect Details</div>
                     <div class="field-val"><strong>{customer_name}</strong> ({customer_email})</div>
@@ -251,7 +264,7 @@ def screenshot_slack_sync(business_name: str, customer_name: str, customer_email
     </html>
     """
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
         page = browser.new_page()
         page.set_content(html_content)
         page.wait_for_timeout(500)

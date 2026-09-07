@@ -64,15 +64,19 @@ async def find_businesses(niche: str, location: str, scale: str = "small", exclu
 
 # ---- Stage 2: Deep research ----
 RESEARCH_SYSTEM_PROMPT = """You are a business research assistant for an automation freelancer.
-Given a business name and location, use the tavily_search tool to find their website
-and social media presence. Then summarize in this format:
+Given a business name and location, use the tavily_search tool to find their website,
+social media presence, and a real contact email address if one is publicly listed
+(check their website's Contact/About page, footer, or social media bio).
+Then summarize in this format:
 
 Business type:
 Estimated scale (small/medium):
+Contact email (if publicly available, otherwise write "Not found"):
 One manual, repetitive customer inquiry or lead-handling task this business likely does that could be automated:
 
 Be specific and concrete. Base your answer only on what you actually find via search —
-if you can't find enough information, say so honestly instead of guessing.
+if you can't find enough information, say so honestly instead of guessing. Only report
+a contact email if you actually found it in the search results - never invent one.
 """
 
 research_agent = Agent(model=model, tools=[tavily_search], system_prompt=RESEARCH_SYSTEM_PROMPT, callback_handler=None)

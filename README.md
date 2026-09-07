@@ -4,7 +4,7 @@
 
 Built for the AWS **"Agents for Humans"** hackathon.
 
-🔗 **Live app:** [agentsforhumans.vercel.app](https://agentsforhumans.vercel.app)
+🔗 **Live app:** [ai-scout-agent.vercel.app](https://ai-scout-agent.vercel.app/)
 
 ---
 

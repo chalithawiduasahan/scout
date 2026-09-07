@@ -133,6 +133,20 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   const API_BASE = "https://scout-backend-gq18.onrender.com";
 
+  // Screenshots come in two forms depending on where they're from:
+  // - Home tab (freshly generated, not sent yet): a local server path like
+  //   "screenshots/xyz.png" - needs the API_BASE prefix to load.
+  // - History tab (already sent): a full permanent Supabase Storage URL like
+  //   "https://xxxx.supabase.co/storage/v1/object/public/screenshots/xyz.png"
+  //   - already a complete URL, must NOT be prefixed with API_BASE.
+  const getImageUrl = (path: string) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    return `${API_BASE}/${path.replace(/^\//, '')}`;
+  };
+
   useEffect(() => {
     fetchHistory();
   }, [userName, activeTab]);
@@ -293,7 +307,7 @@ export default function Dashboard({ userName }: { userName: string }) {
           <button onClick={() => setLightbox(null)} className="absolute right-6 top-6 rounded-full p-2 hover:bg-white/10">
             <X className="h-8 w-8 text-white" />
           </button>
-          <img src={`${API_BASE}/${lightbox.url.replace(/^\//, '')}`} alt="Screenshot" className="max-h-[80vh] max-w-[95vw] rounded-xl border border-white/10 shadow-2xl object-contain" />
+          <img src={lightbox.url} alt="Screenshot" className="max-h-[80vh] max-w-[95vw] rounded-xl border border-white/10 shadow-2xl object-contain" />
           <p className="mt-4 font-medium text-ink-300 text-center">{lightbox.cap}</p>
         </div>
       )}
@@ -403,8 +417,8 @@ export default function Dashboard({ userName }: { userName: string }) {
                         { key: 'email_screenshot', cap: '3. Auto-reply' },
                         { key: 'slack_screenshot', cap: '4. Slack alert' }
                       ].map((img) => (
-                        <div key={img.key} onClick={() => setLightbox({ url: `${API_BASE}/${currentItem.demo_result[img.key].replace(/^\//, '')}`, cap: img.cap })} className="group cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-ink-900/50 hover:border-scout-400">
-                          <img src={`${API_BASE}/${currentItem.demo_result[img.key].replace(/^\//, '')}`} alt={img.cap} className="h-28 w-full object-cover object-top opacity-80 transition-opacity group-hover:opacity-100" />
+                        <div key={img.key} onClick={() => setLightbox({ url: getImageUrl(currentItem.demo_result[img.key]), cap: img.cap })} className="group cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-ink-900/50 hover:border-scout-400">
+                          <img src={getImageUrl(currentItem.demo_result[img.key])} alt={img.cap} className="h-28 w-full object-cover object-top opacity-80 transition-opacity group-hover:opacity-100" />
                           <div className="flex items-center gap-2 p-2.5 text-xs text-ink-300">
                             <ImageIcon className="h-3.5 w-3.5 text-scout-400" />
                             {img.cap}
@@ -479,8 +493,8 @@ export default function Dashboard({ userName }: { userName: string }) {
                         { key: 'slack_screenshot', cap: '4. Slack alert' }
                       ].map((img) => (
                         selectedHistoryItem[img.key] && (
-                          <div key={img.key} onClick={() => setLightbox({ url: `${API_BASE}/${selectedHistoryItem[img.key].replace(/^\//, '')}`, cap: img.cap })} className="group cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-ink-900/50 hover:border-scout-400">
-                            <img src={`${API_BASE}/${selectedHistoryItem[img.key].replace(/^\//, '')}`} alt={img.cap} className="h-28 w-full object-cover object-top opacity-80 transition-opacity group-hover:opacity-100" />
+                          <div key={img.key} onClick={() => setLightbox({ url: getImageUrl(selectedHistoryItem[img.key]), cap: img.cap })} className="group cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-ink-900/50 hover:border-scout-400">
+                            <img src={getImageUrl(selectedHistoryItem[img.key])} alt={img.cap} className="h-28 w-full object-cover object-top opacity-80 transition-opacity group-hover:opacity-100" />
                             <div className="flex items-center gap-2 p-2.5 text-xs text-ink-300">
                               <ImageIcon className="h-3.5 w-3.5 text-scout-400" />
                               {img.cap}

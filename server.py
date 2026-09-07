@@ -1,5 +1,6 @@
 import os
 import random
+import uuid
 import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +30,36 @@ app.mount("/screenshots", StaticFiles(directory="screenshots"), name="screenshot
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 supabase: Optional[Client] = create_client(supabase_url, supabase_key) if supabase_url and supabase_key else None
+
+SCREENSHOTS_BUCKET = "screenshots"
+
+def upload_screenshot_to_storage(local_path: Optional[str]) -> Optional[str]:
+    """Uploads a local screenshot file to Supabase Storage and returns its
+    permanent public URL. Falls back to returning the original local path if
+    Supabase isn't configured or the file can't be found, so nothing crashes
+    if something's off - it just won't be a permanent link in that case."""
+    if not supabase or not local_path or not os.path.exists(local_path):
+        return local_path
+
+    try:
+        file_ext = os.path.splitext(local_path)[1] or ".png"
+        # Prefix with a random id so re-running the same business name never
+        # overwrites a previous screenshot already linked from history.
+        storage_path = f"{uuid.uuid4().hex}{file_ext}"
+
+        with open(local_path, "rb") as f:
+            supabase.storage.from_(SCREENSHOTS_BUCKET).upload(
+                path=storage_path,
+                file=f,
+                file_options={"content-type": "image/png"}
+            )
+
+        public_url = supabase.storage.from_(SCREENSHOTS_BUCKET).get_public_url(storage_path)
+        return public_url
+    except Exception:
+        print(f"WARNING: Failed to upload {local_path} to Supabase Storage:")
+        traceback.print_exc()
+        return local_path
 
 class ResearchRequest(BaseModel):
     user_name: str
@@ -131,6 +162,8 @@ async def regenerate_outreach(request: RegenerateRequest):
 @app.post("/api/send-outreach")
 async def send_outreach(request: SendOutreachRequest):
     try:
+        # Send the actual email using the LOCAL files (real attachments need
+        # a real file on disk - this part is unaffected and unchanged).
         attachments = [
             request.form_screenshot,
             request.airtable_screenshot,
@@ -146,7 +179,15 @@ async def send_outreach(request: SendOutreachRequest):
             attachment_paths=attachments
         )
 
+        # Now upload the same screenshots to permanent Supabase Storage and
+        # save THOSE URLs to history, instead of the local paths, so History
+        # keeps working even after the server restarts or redeploys.
         if supabase:
+            form_url = upload_screenshot_to_storage(request.form_screenshot)
+            airtable_url = upload_screenshot_to_storage(request.airtable_screenshot)
+            email_url = upload_screenshot_to_storage(request.email_screenshot)
+            slack_url = upload_screenshot_to_storage(request.slack_screenshot) if request.slack_screenshot else None
+
             supabase.table("outreach_history").insert({
                 "user_name": request.user_name,
                 "business_name": request.business_name,
@@ -156,10 +197,10 @@ async def send_outreach(request: SendOutreachRequest):
                 "recipient_email": request.recipient_email,
                 "subject": request.subject,
                 "body": request.body,
-                "form_screenshot": request.form_screenshot,
-                "airtable_screenshot": request.airtable_screenshot,
-                "email_screenshot": request.email_screenshot,
-                "slack_screenshot": request.slack_screenshot,
+                "form_screenshot": form_url,
+                "airtable_screenshot": airtable_url,
+                "email_screenshot": email_url,
+                "slack_screenshot": slack_url,
             }).execute()
 
         return {"status": "success", "message": status}

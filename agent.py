@@ -163,7 +163,7 @@ def submit_demo_form_sync(name: str, email: str, inquiry: str, screenshot_path: 
         page.get_by_label("Email").fill(email)
         page.get_by_label("Inquiry").fill(inquiry)
 
-        page.screenshot(path=screenshot_path, full_page=True)
+        page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
         page.get_by_role("button", name="Submit").click()
         page.wait_for_timeout(2000)
         browser.close()
@@ -190,7 +190,7 @@ def screenshot_airtable_sync(screenshot_path: str):
             page.wait_for_timeout(500)
         except Exception:
             pass
-        page.screenshot(path=screenshot_path, full_page=True)
+        page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
         browser.close()
 
 def screenshot_email_sync(subject: str, body: str, screenshot_path: str):
@@ -223,7 +223,7 @@ def screenshot_email_sync(subject: str, body: str, screenshot_path: str):
         page = browser.new_page()
         page.set_content(html_content)
         page.wait_for_timeout(500)
-        page.screenshot(path=screenshot_path)
+        page.screenshot(path=screenshot_path, timeout=60000)
         browser.close()
 
 def screenshot_slack_sync(business_name: str, customer_name: str, customer_email: str, inquiry: str, screenshot_path: str):
@@ -274,7 +274,7 @@ def screenshot_slack_sync(business_name: str, customer_name: str, customer_email
         page = browser.new_page()
         page.set_content(html_content)
         page.wait_for_timeout(500)
-        page.screenshot(path=screenshot_path)
+        page.screenshot(path=screenshot_path, timeout=60000)
         browser.close()
 
 async def build_real_demo(business_name: str, research_profile: str) -> dict:

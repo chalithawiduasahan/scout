@@ -80,8 +80,8 @@ User sets niche/location/scale/count
 
 **Backend:**
 ```bash
-git clone https://github.com/chalithawiduasahan/agents-for-humans.git
-cd <repo-folder>
+git clone https://github.com/chalithawiduasahan/scout.git
+cd scout
 pip install -r requirements.txt
 playwright install chromium
 ```

@@ -78,29 +78,42 @@ User sets niche/location/scale/count
 
 ## Running it locally
 
+### Prerequisites
+* Python 3.10+
+* Node.js 18+ & npm
+* Playwright browsers
+
 **Backend:**
 ```bash
 git clone https://github.com/chalithawiduasahan/scout.git
 cd scout
+python -m venv venv
+
+#on macOS/Linux:
+source venv/bin/activate
+
+#on Windows:
+venv\scripts\activate
+
 pip install -r requirements.txt
 playwright install chromium
 ```
 
 Create a `.env` file in the project root with:
 ```
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_DEFAULT_REGION=...
-TAVILY_API_KEY=...
-TALLY_FORM_URL=...
-AIRTABLE_TOKEN=...
-AIRTABLE_BASE_ID=...
-AIRTABLE_TABLE_NAME=...
-AIRTABLE_SHARE_URL=...
-SUPABASE_URL=...
-SUPABASE_KEY=...       # service_role key, not anon
-SES_SENDER_EMAIL=...
-SES_TEST_RECIPIENT=...
+AWS_ACCESS_KEY_ID=your_aws_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_DEFAULT_REGION=us-east-1
+TAVILY_API_KEY=your_tavily_key
+TALLY_FORM_URL=your_tally_url
+AIRTABLE_TOKEN=your_airtable_token
+AIRTABLE_BASE_ID=your_airtable_base_id
+AIRTABLE_TABLE_NAME=your_airtable_table_name
+AIRTABLE_SHARE_URL=your_airtable_share_url
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_service_role_key
+SES_SENDER_EMAIL=your_verified_sender
+SES_TEST_RECIPIENT=your_verified_recipient
 ```
 
 Then run:
@@ -108,7 +121,14 @@ Then run:
 uvicorn server:app --reload
 ```
 
-**Frontend:** see the `project/` folder — standard `npm install && npm run dev`.
+**Frontend:** 
+Open a new terminal window and navigate to the `project/` folder and run,
+
+```bash
+cd project
+npm install
+npm run dev
+```
 
 ## Challenges faced
 

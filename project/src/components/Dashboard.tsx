@@ -131,7 +131,7 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   const [lightbox, setLightbox] = useState<{ url: string; cap: string } | null>(null);
 
-  const API_BASE = '';
+  const API_BASE = "https://scout-a1zx.onrender.com";
 
   useEffect(() => {
     fetchHistory();

@@ -69,7 +69,10 @@ function CountSelect({ value, onChange }: { value: string; onChange: (v: string)
   };
 
   const increase = () => {
-    if (currentNum < 5) {
+    // Capped at 2 (was 5) to reduce Playwright/Chromium memory pressure per
+    // run on Render's limited RAM - each additional lead in a batch adds a
+    // full sequential research + demo-build + screenshot cycle.
+    if (currentNum < 2) {
       onChange(String(currentNum + 1));
     }
   };
@@ -89,7 +92,7 @@ function CountSelect({ value, onChange }: { value: string; onChange: (v: string)
         <button
           type="button"
           onClick={increase}
-          disabled={currentNum >= 5}
+          disabled={currentNum >= 2}
           className="rounded-lg p-1 text-ink-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
         >
           <Plus className="h-4 w-4" />

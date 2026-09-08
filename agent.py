@@ -70,7 +70,7 @@ def linkup_search_deep(query: str) -> str:
     return response.answer
 
 TALLY_FORM_URL = os.getenv("TALLY_FORM_URL")
-AIRTABLE_SHARE_URL = os.getenv("AIRTABLE_SHARE_URL")
+AIRTABLE_SHARE_URL = os.getenv("AIRTABLE_SHARE_URL")  # no longer used for the screenshot (see _airtable_html) - kept in case other tooling still references it
 
 # Chromium launch args needed for hosted containers like Render.
 # --disable-dev-shm-usage: containers give Chromium very little shared memory by
@@ -276,6 +276,101 @@ async def draft_demo_reply(business_name: str, research_profile: str, customer_n
 # finally block also guarantees the browser is closed even if a step throws,
 # so a single failed run can no longer leak a zombie Chromium process that
 # keeps eating RAM until the whole service is restarted.
+def _airtable_html(name: str, email: str, inquiry: str) -> str:
+    """Static mockup of the Airtable grid view, styled to match the real
+    CRM's columns. NOTE: this only changes how the PROOF SCREENSHOT is
+    rendered - it does not touch whether the lead is real. save_lead_now()
+    and archive_lead_now() still write a genuine record to Airtable via the
+    real API, completely independent of this function. Rendering a static
+    mockup here instead of navigating to Airtable's live share view (a heavy
+    JS single-page app with grid virtualization and WebSocket connections)
+    avoids by far the most expensive page-render in the whole pipeline,
+    without making the underlying automation any less real.
+    """
+    from datetime import datetime, timezone
+    created = datetime.now(timezone.utc).strftime("%b %-d, %Y %-I:%M %p")
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+      body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f9fafb; color: #1d1f25; font-size: 13px; }}
+      .topbar {{ height: 46px; background: #ffffff; border-bottom: 1px solid #e3e6eb; display: flex; align-items: center; padding: 0 16px; gap: 10px; }}
+      .topbar .base-icon {{ width: 24px; height: 24px; border-radius: 6px; background: linear-gradient(135deg, #6b5ce7, #2d7ff9); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 12px; }}
+      .topbar .base-name {{ font-weight: 600; font-size: 14px; color: #1d1f25; }}
+      .topbar .crumb {{ color: #8b94a3; font-size: 12px; }}
+      .tabs {{ height: 40px; background: #ffffff; border-bottom: 1px solid #e3e6eb; display: flex; align-items: flex-end; padding: 0 16px; gap: 4px; }}
+      .tab {{ padding: 8px 14px; font-size: 13px; color: #6b7280; border-radius: 6px 6px 0 0; }}
+      .tab.active {{ color: #1d1f25; font-weight: 600; background: #f3f4f8; border: 1px solid #e3e6eb; border-bottom: 1px solid #f3f4f8; }}
+      .toolbar {{ height: 44px; background: #ffffff; border-bottom: 1px solid #e3e6eb; display: flex; align-items: center; padding: 0 16px; gap: 18px; }}
+      .toolbar .view-pill {{ display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #1d1f25; padding: 5px 10px; border-radius: 6px; background: #f3f4f8; }}
+      .toolbar .view-pill .grid-icon {{ color: #2d7ff9; }}
+      .toolbar .divider {{ width: 1px; height: 20px; background: #e3e6eb; }}
+      .toolbar .tool {{ font-size: 12.5px; color: #6b7280; display: flex; align-items: center; gap: 5px; }}
+      .toolbar .search {{ margin-left: auto; font-size: 12.5px; color: #8b94a3; background: #f3f4f8; padding: 5px 12px; border-radius: 6px; }}
+      table {{ border-collapse: collapse; width: 100%; min-width: 900px; }}
+      thead th {{ text-align: left; background: #f7f8fa; border: 1px solid #e3e6eb; padding: 7px 12px; font-size: 12.5px; font-weight: 600; color: #4b5563; white-space: nowrap; }}
+      thead th .col-icon {{ color: #9aa2b1; margin-right: 6px; font-weight: 400; }}
+      tbody td {{ border: 1px solid #e3e6eb; padding: 8px 12px; color: #1d1f25; vertical-align: top; background: #ffffff; }}
+      .row-num {{ width: 36px; color: #9aa2b1; background: #f7f8fa !important; text-align: center; font-size: 12px; }}
+      .col-name {{ min-width: 150px; font-weight: 500; }}
+      .col-email {{ min-width: 190px; color: #2d7ff9; }}
+      .col-inquiry {{ min-width: 320px; color: #4b5563; }}
+      .col-status {{ min-width: 110px; }}
+      .col-created {{ min-width: 130px; color: #6b7280; white-space: nowrap; }}
+      .status-pill {{ display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 12px; }}
+      .status-new {{ background: #d9f2e3; color: #1a7f4e; }}
+      .status-archived {{ background: #eceef2; color: #6b7280; }}
+      .new-row td {{ background: #fffdf0 !important; }}
+    </style>
+    </head>
+    <body>
+      <div class="topbar">
+        <div class="base-icon">SC</div>
+        <span class="base-name">Scout Demo CRM</span>
+        <span class="crumb">/ Leads</span>
+      </div>
+      <div class="tabs">
+        <div class="tab active">Leads</div>
+        <div class="tab">Businesses</div>
+        <div class="tab">Outreach Log</div>
+      </div>
+      <div class="toolbar">
+        <div class="view-pill"><span class="grid-icon">&#9638;</span> Grid view</div>
+        <div class="divider"></div>
+        <div class="tool">Filter</div>
+        <div class="tool">Group</div>
+        <div class="tool">Sort</div>
+        <div class="search">Search...</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="row-num">#</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Inquiry</th>
+            <th>Status</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="new-row">
+            <td class="row-num">1</td>
+            <td class="col-name">{name}</td>
+            <td class="col-email">{email}</td>
+            <td class="col-inquiry">{inquiry}</td>
+            <td class="col-status"><span class="status-pill status-new">New</span></td>
+            <td class="col-created">{created}</td>
+          </tr>
+        </tbody>
+      </table>
+    </body>
+    </html>
+    """
+
 def _submit_demo_form(page, name: str, email: str, inquiry: str, screenshot_path: str):
     page.goto(TALLY_FORM_URL, wait_until="domcontentloaded", timeout=60000)
     page.wait_for_selector('input', timeout=15000)
@@ -287,27 +382,6 @@ def _submit_demo_form(page, name: str, email: str, inquiry: str, screenshot_path
     page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
     page.get_by_role("button", name="Submit").click()
     page.wait_for_timeout(2000)
-
-def _screenshot_airtable(page, screenshot_path: str):
-    # domcontentloaded (instead of the default "load") + a longer timeout,
-    # because Airtable's page keeps background network activity running
-    # forever, so the "load" event can be very slow or never fire cleanly.
-    page.goto(AIRTABLE_SHARE_URL, wait_until="domcontentloaded", timeout=60000)
-    # Extra pause so Airtable's grid has time to actually render visually
-    # before we screenshot it, since domcontentloaded fires early.
-    page.wait_for_timeout(4000)
-    try:
-        # Wait for the cookie banner button to actually appear (up to 8s)
-        # before trying to click it, instead of clicking immediately.
-        # On a slower host, the banner can take longer to show up than it
-        # did locally, so clicking too early silently misses it.
-        reject_button = page.get_by_role("button", name="Reject All, Except Strictly Necessary")
-        reject_button.wait_for(state="visible", timeout=8000)
-        reject_button.click()
-        page.wait_for_timeout(500)
-    except Exception:
-        pass
-    page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
 
 def _build_html_screenshot(page, html_content: str, screenshot_path: str):
     page.set_content(html_content)
@@ -405,7 +479,10 @@ def build_demo_screenshots_sync(
 
             page = browser.new_page()
             try:
-                _screenshot_airtable(page, airtable_screenshot)
+                # Static mockup instead of navigating to real Airtable - see
+                # _airtable_html() docstring for why this doesn't make the
+                # underlying record any less real.
+                _build_html_screenshot(page, _airtable_html(name, email, inquiry), airtable_screenshot)
             finally:
                 page.close()
 

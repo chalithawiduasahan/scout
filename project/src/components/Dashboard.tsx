@@ -140,6 +140,15 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   const API_BASE = "https://scout-backend-gq18.onrender.com";
 
+  // Fixed demo recipient shown (and locked) in the "Send to" box. This is
+  // cosmetic/UX only - the box cannot be edited, but the real enforcement
+  // that ALL sends land here regardless of what this UI shows lives
+  // server-side in server.py (SES_TEST_RECIPIENT). That's intentional:
+  // anyone can view this value in the public JS bundle or call the API
+  // directly, so the backend, not this constant, is what actually protects
+  // real businesses from receiving unsolicited demo emails.
+  const DEMO_RECIPIENT_EMAIL = "cwidusahan@gmail.com";
+
   // Screenshots come in two forms depending on where they're from:
   // - Home tab (freshly generated, not sent yet): a local server path like
   //   "screenshots/xyz.png" - needs the API_BASE prefix to load.
@@ -268,8 +277,10 @@ export default function Dashboard({ userName }: { userName: string }) {
         scale,
         // This is sent for logging/reference only - the backend always
         // redirects the actual send to its own verified test inbox
-        // regardless of this value. See server.py for the enforced logic.
-        recipient_email: researchedContactEmail || 'not found during research',
+        // (SES_TEST_RECIPIENT) regardless of this value. See server.py
+        // for the enforced logic. Sent as the fixed demo recipient shown
+        // in the locked "Send to" box above, to match what the user saw.
+        recipient_email: DEMO_RECIPIENT_EMAIL,
         subject,
         body,
         business_name: currentItem.business_name,
@@ -443,22 +454,30 @@ export default function Dashboard({ userName }: { userName: string }) {
                   <div className="glass-strong rounded-2xl p-6">
                     <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-ink-400">Outreach — review before sending</h2>
                     <div className="space-y-4">
-                      {/* Demo-mode notice replaces a free-text "Send to" field.
-                          This is informational only; the actual safety
-                          enforcement happens server-side (see server.py) so
-                          it can't be bypassed by editing this UI. */}
+                      {/* Locked "Send to" box - always shows the fixed demo
+                          recipient and cannot be edited (no onChange, always
+                          disabled). This is UX-only: the actual enforcement
+                          that every send lands here regardless of this box
+                          lives server-side in server.py, so it can't be
+                          bypassed by editing this UI or calling the API
+                          directly. */}
                       <div className="flex flex-col gap-2">
                         <label className="text-xs font-medium text-ink-400">Send to</label>
-                        <div className="flex items-start gap-2 rounded-xl border border-scout-400/30 bg-scout-400/5 px-4 py-3 text-sm text-scout-200">
-                          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-scout-400" />
-                          <span>
-                            Demo mode: this outreach email always goes to a verified test inbox, not the
-                            real business, so trying this out never sends unsolicited email to anyone.
-                          </span>
+                        <div className="relative">
+                          <input
+                            value={DEMO_RECIPIENT_EMAIL}
+                            disabled
+                            readOnly
+                            className="w-full cursor-not-allowed rounded-xl border border-scout-400/30 bg-scout-400/5 px-4 py-2.5 pr-9 text-sm text-scout-200 focus:outline-none"
+                          />
+                          <ShieldCheck className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-scout-400" />
                         </div>
+                        <p className="text-xs text-ink-500">
+                          Demo mode — locked to a verified test inbox so trying this out never emails a real business.
+                        </p>
                         {researchedContactEmail && (
                           <p className="text-xs text-ink-500">
-                            Contact found during research (for reference only): {researchedContactEmail}
+                            Contact found during research (for reference only, not used): {researchedContactEmail}
                           </p>
                         )}
                       </div>

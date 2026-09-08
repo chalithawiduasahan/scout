@@ -1,4 +1,5 @@
 import os
+import re
 import asyncio
 from dotenv import load_dotenv
 load_dotenv()
@@ -25,7 +26,50 @@ AIRTABLE_SHARE_URL = os.getenv("AIRTABLE_SHARE_URL")
 #   use disk instead of shared memory.
 # --no-sandbox: Chromium's normal sandboxing needs OS permissions that hosted
 #   containers usually don't grant, so it must be disabled to launch at all.
-CHROMIUM_ARGS = ["--disable-dev-shm-usage", "--no-sandbox"]
+# --single-process / --disable-gpu / --no-zygote: cuts the number of extra
+#   Chromium helper processes spawned, which matters a lot on low-RAM hosts
+#   like Render's free/starter tier, where each extra process adds up fast.
+CHROMIUM_ARGS = [
+    "--disable-dev-shm-usage",
+    "--no-sandbox",
+    "--single-process",
+    "--disable-gpu",
+    "--no-zygote",
+]
+
+# ---------------------------------------------------------------------------
+# Plain-text sanitizer
+# ---------------------------------------------------------------------------
+# Models don't always obey "no markdown" instructions in the prompt. This is
+# a safety net applied AFTER generation, so stray **bold**, # headers, or ---
+# separators never reach the UI even if the model slips up. Used specifically
+# for research_business(), whose output is shown directly in the dashboard.
+def sanitize_plain_text(text: str) -> str:
+    text = text.strip()
+    # Drop a conversational preamble line before the real content starts,
+    # e.g. "Excellent! I found comprehensive information... Here's my summary:"
+    lines = text.split("\n")
+    while lines and not re.match(r"^\s*(business type|estimated scale|contact email|one manual)", lines[0], re.IGNORECASE):
+        # Only strip leading lines that look like chatty preamble, not the
+        # actual content - stop as soon as we hit a recognizable field label
+        # or run out of lines.
+        if len(lines) <= 1:
+            break
+        lines.pop(0)
+    text = "\n".join(lines).strip() or text  # fall back to original if we stripped everything
+
+    # Remove markdown separators (---, ***, ___ on their own line)
+    text = re.sub(r"^\s*[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+    # Remove heading markers (#, ##, ### at line start)
+    text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.MULTILINE)
+    # Remove bold/italic markers (**text**, *text*, __text__, _text_)
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"\1", text)
+    text = re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"\1", text)
+    # Collapse leftover blank lines from removed separators/headings
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 # ---- Stage 1: Discovery with Scale Criteria & Exclusions ----
 DISCOVERY_SYSTEM_PROMPT = """You are a lead discovery assistant for an automation freelancer.
@@ -67,7 +111,7 @@ RESEARCH_SYSTEM_PROMPT = """You are a business research assistant for an automat
 Given a business name and location, use the tavily_search tool to find their website,
 social media presence, and a real contact email address if one is publicly listed
 (check their website's Contact/About page, footer, or social media bio).
-Then summarize in this format:
+Then summarize in this EXACT plain text format, with no other content:
 
 Business type:
 Estimated scale (small/medium):
@@ -77,13 +121,18 @@ One manual, repetitive customer inquiry or lead-handling task this business like
 Be specific and concrete. Base your answer only on what you actually find via search —
 if you can't find enough information, say so honestly instead of guessing. Only report
 a contact email if you actually found it in the search results - never invent one.
+
+STRICT OUTPUT RULES:
+- Do NOT include any conversational preamble or closing remarks (no "Excellent!", no "Here's my research summary", no "Let me know if...").
+- Do NOT use any markdown formatting whatsoever: no asterisks, no bold, no headings (#), no horizontal rules (---), no bullet points.
+- Output ONLY the four plain text labeled lines above, nothing else.
 """
 
 research_agent = Agent(model=model, tools=[tavily_search], system_prompt=RESEARCH_SYSTEM_PROMPT, callback_handler=None)
 
 async def research_business(business_name: str, location: str) -> str:
     response = await research_agent.invoke_async(f"Research this business: {business_name} located in {location}")
-    return str(response)
+    return sanitize_plain_text(str(response))
 
 # ---- Stage 3: Build the REAL demo ----
 DEMO_LEAD_SYSTEM_PROMPT = """Given a business's name and research about them, invent ONE realistic,
@@ -155,50 +204,58 @@ async def draft_demo_reply(business_name: str, research_profile: str, customer_n
 
     return subject, body
 
-# ---- Synchronous Playwright Helpers ----
-def submit_demo_form_sync(name: str, email: str, inquiry: str, screenshot_path: str):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-        page = browser.new_page()
-        page.goto(TALLY_FORM_URL, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_selector('input', timeout=15000)
+# ---------------------------------------------------------------------------
+# Playwright demo-build helpers
+# ---------------------------------------------------------------------------
+# All 4 screenshot steps now share ONE browser instance per business, opened
+# once in build_demo_screenshots_sync() and closed exactly once in a finally
+# block - instead of the previous approach of launching a brand new Chromium
+# process for every single step. Launching Chromium repeatedly is the most
+# memory-expensive part of this pipeline, and on a small hosted instance
+# (like Render's free/starter tier) that adds up fast across a run. The
+# finally block also guarantees the browser is closed even if a step throws,
+# so a single failed run can no longer leak a zombie Chromium process that
+# keeps eating RAM until the whole service is restarted.
+def _submit_demo_form(page, name: str, email: str, inquiry: str, screenshot_path: str):
+    page.goto(TALLY_FORM_URL, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_selector('input', timeout=15000)
 
-        page.get_by_label("Name").fill(name)
-        page.get_by_label("Email").fill(email)
-        page.get_by_label("Inquiry").fill(inquiry)
+    page.get_by_label("Name").fill(name)
+    page.get_by_label("Email").fill(email)
+    page.get_by_label("Inquiry").fill(inquiry)
 
-        page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
-        page.get_by_role("button", name="Submit").click()
-        page.wait_for_timeout(2000)
-        browser.close()
+    page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
+    page.get_by_role("button", name="Submit").click()
+    page.wait_for_timeout(2000)
 
-def screenshot_airtable_sync(screenshot_path: str):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-        page = browser.new_page()
-        # domcontentloaded (instead of the default "load") + a longer timeout,
-        # because Airtable's page keeps background network activity running
-        # forever, so the "load" event can be very slow or never fire cleanly.
-        page.goto(AIRTABLE_SHARE_URL, wait_until="domcontentloaded", timeout=60000)
-        # Extra pause so Airtable's grid has time to actually render visually
-        # before we screenshot it, since domcontentloaded fires early.
-        page.wait_for_timeout(4000)
-        try:
-            # Wait for the cookie banner button to actually appear (up to 8s)
-            # before trying to click it, instead of clicking immediately.
-            # On a slower host, the banner can take longer to show up than it
-            # did locally, so clicking too early silently misses it.
-            reject_button = page.get_by_role("button", name="Reject All, Except Strictly Necessary")
-            reject_button.wait_for(state="visible", timeout=8000)
-            reject_button.click()
-            page.wait_for_timeout(500)
-        except Exception:
-            pass
-        page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
-        browser.close()
+def _screenshot_airtable(page, screenshot_path: str):
+    # domcontentloaded (instead of the default "load") + a longer timeout,
+    # because Airtable's page keeps background network activity running
+    # forever, so the "load" event can be very slow or never fire cleanly.
+    page.goto(AIRTABLE_SHARE_URL, wait_until="domcontentloaded", timeout=60000)
+    # Extra pause so Airtable's grid has time to actually render visually
+    # before we screenshot it, since domcontentloaded fires early.
+    page.wait_for_timeout(4000)
+    try:
+        # Wait for the cookie banner button to actually appear (up to 8s)
+        # before trying to click it, instead of clicking immediately.
+        # On a slower host, the banner can take longer to show up than it
+        # did locally, so clicking too early silently misses it.
+        reject_button = page.get_by_role("button", name="Reject All, Except Strictly Necessary")
+        reject_button.wait_for(state="visible", timeout=8000)
+        reject_button.click()
+        page.wait_for_timeout(500)
+    except Exception:
+        pass
+    page.screenshot(path=screenshot_path, full_page=True, timeout=60000)
 
-def screenshot_email_sync(subject: str, body: str, screenshot_path: str):
-    html_content = f"""
+def _build_html_screenshot(page, html_content: str, screenshot_path: str):
+    page.set_content(html_content)
+    page.wait_for_timeout(500)
+    page.screenshot(path=screenshot_path, timeout=60000)
+
+def _email_html(subject: str, body: str) -> str:
+    return f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -222,16 +279,9 @@ def screenshot_email_sync(subject: str, body: str, screenshot_path: str):
     </body>
     </html>
     """
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-        page = browser.new_page()
-        page.set_content(html_content)
-        page.wait_for_timeout(500)
-        page.screenshot(path=screenshot_path, timeout=60000)
-        browser.close()
 
-def screenshot_slack_sync(business_name: str, customer_name: str, customer_email: str, inquiry: str, screenshot_path: str):
-    html_content = f"""
+def _slack_html(business_name: str, customer_name: str, customer_email: str, inquiry: str) -> str:
+    return f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -273,13 +323,45 @@ def screenshot_slack_sync(business_name: str, customer_name: str, customer_email
     </body>
     </html>
     """
+
+def build_demo_screenshots_sync(
+    name: str, email: str, inquiry: str, form_screenshot: str,
+    airtable_screenshot: str,
+    email_subject: str, email_body: str, email_screenshot: str,
+    business_name: str, slack_screenshot: str,
+) -> None:
+    """Runs all 4 screenshot steps against a single shared browser instance,
+    opening/closing a fresh page for each step to keep memory tidy, and
+    guaranteeing the browser itself is closed exactly once no matter what
+    happens partway through."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=CHROMIUM_ARGS)
-        page = browser.new_page()
-        page.set_content(html_content)
-        page.wait_for_timeout(500)
-        page.screenshot(path=screenshot_path, timeout=60000)
-        browser.close()
+        try:
+            page = browser.new_page()
+            try:
+                _submit_demo_form(page, name, email, inquiry, form_screenshot)
+            finally:
+                page.close()
+
+            page = browser.new_page()
+            try:
+                _screenshot_airtable(page, airtable_screenshot)
+            finally:
+                page.close()
+
+            page = browser.new_page()
+            try:
+                _build_html_screenshot(page, _email_html(email_subject, email_body), email_screenshot)
+            finally:
+                page.close()
+
+            page = browser.new_page()
+            try:
+                _build_html_screenshot(page, _slack_html(business_name, name, email, inquiry), slack_screenshot)
+            finally:
+                page.close()
+        finally:
+            browser.close()
 
 async def build_real_demo(business_name: str, research_profile: str) -> dict:
     os.makedirs("screenshots", exist_ok=True)
@@ -287,25 +369,32 @@ async def build_real_demo(business_name: str, research_profile: str) -> dict:
 
     name, fake_email, inquiry = await invent_demo_lead(business_name, research_profile)
     form_screenshot = f"screenshots/{safe_name}_form.png"
-    await asyncio.to_thread(submit_demo_form_sync, name, fake_email, inquiry, form_screenshot)
-    record_id = save_lead_now(name, fake_email, inquiry)
+    airtable_screenshot = f"screenshots/{safe_name}_airtable.png"
+    email_screenshot = f"screenshots/{safe_name}_email.png"
+    slack_screenshot = f"screenshots/{safe_name}_slack.png"
 
+    subject, body = await draft_demo_reply(business_name, research_profile, name, inquiry)
+
+    # NOTE: the CRM record must be created and archived around the Airtable
+    # screenshot step specifically (so the screenshot shows exactly the one
+    # lead we just created), so that part still runs in the main thread
+    # around the single combined Playwright call below.
+    record_id = save_lead_now(name, fake_email, inquiry)
     # Safety net: sweep away any leftover "New" leads from a previous run
     # that crashed before it could archive itself, so the Airtable screenshot
     # only ever shows the one lead we just created.
     await asyncio.to_thread(cleanup_stray_new_leads, record_id)
 
-    airtable_screenshot = f"screenshots/{safe_name}_airtable.png"
-    await asyncio.to_thread(screenshot_airtable_sync, airtable_screenshot)
+    await asyncio.to_thread(
+        build_demo_screenshots_sync,
+        name, fake_email, inquiry, form_screenshot,
+        airtable_screenshot,
+        subject, body, email_screenshot,
+        business_name, slack_screenshot,
+    )
+
     archive_lead_now(record_id)
-
-    subject, body = await draft_demo_reply(business_name, research_profile, name, inquiry)
-    email_screenshot = f"screenshots/{safe_name}_email.png"
-    await asyncio.to_thread(screenshot_email_sync, subject, body, email_screenshot)
-
     send_slack_lead_notification(business_name, name, fake_email, inquiry)
-    slack_screenshot = f"screenshots/{safe_name}_slack.png"
-    await asyncio.to_thread(screenshot_slack_sync, business_name, name, fake_email, inquiry, slack_screenshot)
 
     return {
         "lead_name": name,

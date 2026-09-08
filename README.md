@@ -114,6 +114,7 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_service_role_key
 SES_SENDER_EMAIL=your_verified_sender
 SES_TEST_RECIPIENT=your_verified_recipient
+LINKUP_API_KEY=your_linkup_api_key
 ```
 
 Then run:

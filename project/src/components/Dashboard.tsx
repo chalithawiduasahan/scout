@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, History, Home, Image as ImageIcon, Loader2, Menu, X, ArrowLeft, Globe, MapPin, BarChart3, Clock, Zap, Target, Plus, Minus } from 'lucide-react';
+import { ChevronDown, History, Home, Image as ImageIcon, Loader2, Menu, X, ArrowLeft, Globe, MapPin, BarChart3, Clock, Zap, Target, Plus, Minus, ShieldCheck } from 'lucide-react';
 
 const SCALE_OPTIONS = [
   { value: 'small', label: 'Small (<10 staff)' },
@@ -119,7 +119,14 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Outreach State for Current Item in Queue
-  const [sendTo, setSendTo] = useState('');
+  // NOTE: `researchedContactEmail` is informational only - the business
+  // contact email discovered during research. It is shown to the user for
+  // transparency but is NOT the actual send target. The real safety
+  // enforcement (always redirecting sends to a verified test inbox) lives
+  // server-side in server.py and cannot be changed from here - this is by
+  // design, since a frontend-only restriction could be bypassed by anyone
+  // calling the API directly.
+  const [researchedContactEmail, setResearchedContactEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sendLoading, setSendLoading] = useState(false);
@@ -175,7 +182,9 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   const loadQueueItem = (item: any) => {
     if (!item) return;
-    setSendTo(extractEmail(item.research_profile));
+    // This is only used to show the user what contact info research found -
+    // it is never used to decide where the demo email actually goes.
+    setResearchedContactEmail(extractEmail(item.research_profile));
     setSubject(item.draft_subject);
     setBody(finalizeSignature(item.draft_body, userName));
     setSendNote(null);
@@ -248,7 +257,7 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   const sendOutreach = async () => {
     const currentItem = resultsQueue[currentIndex];
-    if (!currentItem || !sendTo) return;
+    if (!currentItem) return;
     setSendLoading(true);
     setSendNote(null);
     try {
@@ -257,7 +266,10 @@ export default function Dashboard({ userName }: { userName: string }) {
         niche,
         location,
         scale,
-        recipient_email: sendTo,
+        // This is sent for logging/reference only - the backend always
+        // redirects the actual send to its own verified test inbox
+        // regardless of this value. See server.py for the enforced logic.
+        recipient_email: researchedContactEmail || 'not found during research',
         subject,
         body,
         business_name: currentItem.business_name,
@@ -273,7 +285,7 @@ export default function Dashboard({ userName }: { userName: string }) {
       });
       const data = await res.json();
       if (res.ok) {
-        setSendNote({ msg: `Sent to ${sendTo}. Logged to History!`, type: 'success' });
+        setSendNote({ msg: `Demo email sent to the verified test inbox. Logged to History!`, type: 'success' });
         fetchHistory();
 
         setTimeout(() => {
@@ -431,9 +443,24 @@ export default function Dashboard({ userName }: { userName: string }) {
                   <div className="glass-strong rounded-2xl p-6">
                     <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-ink-400">Outreach — review before sending</h2>
                     <div className="space-y-4">
+                      {/* Demo-mode notice replaces a free-text "Send to" field.
+                          This is informational only; the actual safety
+                          enforcement happens server-side (see server.py) so
+                          it can't be bypassed by editing this UI. */}
                       <div className="flex flex-col gap-2">
                         <label className="text-xs font-medium text-ink-400">Send to</label>
-                        <input value={sendTo} onChange={(e) => setSendTo(e.target.value)} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm focus:border-scout-400 focus:outline-none" />
+                        <div className="flex items-start gap-2 rounded-xl border border-scout-400/30 bg-scout-400/5 px-4 py-3 text-sm text-scout-200">
+                          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-scout-400" />
+                          <span>
+                            Demo mode: this outreach email always goes to a verified test inbox, not the
+                            real business, so trying this out never sends unsolicited email to anyone.
+                          </span>
+                        </div>
+                        {researchedContactEmail && (
+                          <p className="text-xs text-ink-500">
+                            Contact found during research (for reference only): {researchedContactEmail}
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-col gap-2">
                         <label className="text-xs font-medium text-ink-400">Subject</label>

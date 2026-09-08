@@ -33,6 +33,31 @@ supabase: Optional[Client] = create_client(supabase_url, supabase_key) if supaba
 
 SCREENSHOTS_BUCKET = "screenshots"
 
+# ---------------------------------------------------------------------------
+# DEMO MODE SAFETY LOCK
+# ---------------------------------------------------------------------------
+# This app is a public hackathon demo. Anyone can visit it, research a REAL
+# business, and click "Approve & send." Without this override, that would
+# send a real, unsolicited email to a real business the visitor doesn't know
+# and never contacted. To prevent that, every outreach send in this app is
+# hard-redirected to a single verified test inbox, no matter what recipient
+# the client asks for.
+#
+# IMPORTANT: this check happens here, server-side, not in the frontend.
+# The frontend UI is just for transparency - it cannot be trusted as the
+# actual safety boundary, since anyone can call this API directly (curl,
+# Postman, browser devtools) and bypass any frontend-only restriction.
+SES_TEST_RECIPIENT = os.getenv("SES_TEST_RECIPIENT")
+
+if not SES_TEST_RECIPIENT:
+    # Fail loudly at startup rather than silently falling back to sending
+    # real emails to whatever the client requests.
+    raise RuntimeError(
+        "SES_TEST_RECIPIENT is not set. Refusing to start: without it, "
+        "outreach emails could be sent to real, uncontacted businesses."
+    )
+
+
 def upload_screenshot_to_storage(local_path: Optional[str]) -> Optional[str]:
     """Uploads a local screenshot file to Supabase Storage and returns its
     permanent public URL. Falls back to returning the original local path if
@@ -94,7 +119,7 @@ async def root():
 async def start_agent_pipeline(request: ResearchRequest):
     try:
         print(f"\n--- API Request Received: User='{request.user_name}', Niche='{request.niche}', Location='{request.location}', Scale='{request.scale}', Count={request.count} ---")
-        
+
         excluded_businesses = []
         if supabase:
             history_res = supabase.table("outreach_history").select("business_name").eq("user_name", request.user_name).execute()
@@ -106,7 +131,7 @@ async def start_agent_pipeline(request: ResearchRequest):
         businesses = await find_businesses(request.niche, request.location, request.scale, excluded_businesses)
         if not businesses:
             raise HTTPException(status_code=404, detail="No new businesses found matching these criteria (all potential matches were previously contacted by you).")
-        
+
         run_count = min(request.count, len(businesses))
         batch_results = []
         available_pool = list(businesses)
@@ -114,20 +139,20 @@ async def start_agent_pipeline(request: ResearchRequest):
         for i in range(run_count):
             if not available_pool:
                 break
-            
+
             target_business = random.choice(available_pool)
             available_pool.remove(target_business)
             print(f"[{i+1}/{run_count}] Target business selected (Random): {target_business}")
-            
+
             print(f"Researching business profile for {target_business}...")
             profile = await research_business(target_business, request.location)
-            
+
             print(f"Building live demo & capturing screenshots for {target_business}...")
             demo_result = await build_real_demo(target_business, profile)
-            
+
             print(f"Drafting high-converting outreach pitch for {target_business}...")
             subject, body = await draft_outreach_pitch(target_business, profile)
-            
+
             batch_results.append({
                 "business_name": target_business,
                 "research_profile": profile,
@@ -162,6 +187,22 @@ async def regenerate_outreach(request: RegenerateRequest):
 @app.post("/api/send-outreach")
 async def send_outreach(request: SendOutreachRequest):
     try:
+        # -------------------------------------------------------------
+        # DEMO MODE OVERRIDE - see comment near SES_TEST_RECIPIENT above.
+        # Whatever recipient_email the client sent (the real business
+        # email discovered during research) is recorded for reference
+        # only. The actual email always goes to the verified test inbox.
+        # This line is the entire safety mechanism - it is intentionally
+        # unconditional and not driven by any client-supplied value.
+        # -------------------------------------------------------------
+        researched_business_email = request.recipient_email
+        actual_send_target = SES_TEST_RECIPIENT
+
+        print(
+            f"[DEMO MODE] Researched business contact was '{researched_business_email}'. "
+            f"Actual send is redirected to verified test inbox '{actual_send_target}'."
+        )
+
         # Send the actual email using the LOCAL files (real attachments need
         # a real file on disk - this part is unaffected and unchanged).
         attachments = [
@@ -173,7 +214,7 @@ async def send_outreach(request: SendOutreachRequest):
             attachments.append(request.slack_screenshot)
 
         status = send_email_with_attachments(
-            to_email=request.recipient_email,
+            to_email=actual_send_target,
             subject=request.subject,
             body=request.body,
             attachment_paths=attachments
@@ -194,7 +235,11 @@ async def send_outreach(request: SendOutreachRequest):
                 "niche": request.niche,
                 "location": request.location,
                 "scale": request.scale,
-                "recipient_email": request.recipient_email,
+                # Store the ACTUAL destination the email was sent to (the
+                # verified test inbox), not the researched business email,
+                # so the History tab accurately reflects what really
+                # happened rather than implying a real send occurred.
+                "recipient_email": actual_send_target,
                 "subject": request.subject,
                 "body": request.body,
                 "form_screenshot": form_url,
@@ -203,7 +248,11 @@ async def send_outreach(request: SendOutreachRequest):
                 "slack_screenshot": slack_url,
             }).execute()
 
-        return {"status": "success", "message": status}
+        return {
+            "status": "success",
+            "message": status,
+            "note": f"Demo mode: sent to verified test inbox instead of {researched_business_email}",
+        }
     except Exception as e:
         print("ERROR SENDING OUTREACH:")
         traceback.print_exc()
@@ -214,11 +263,11 @@ async def get_history(user_name: Optional[str] = None):
     try:
         if not supabase:
             return {"status": "success", "data": []}
-        
+
         query = supabase.table("outreach_history").select("*").order("created_at", desc=True)
         if user_name:
             query = query.eq("user_name", user_name)
-            
+
         response = query.execute()
         return {"status": "success", "data": response.data}
     except Exception as e:

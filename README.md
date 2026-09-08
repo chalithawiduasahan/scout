@@ -53,28 +53,21 @@ Nothing is emailed without a person clicking **Approve & send**.
 
 ## Architecture
 
-```
-User sets niche/location/scale/count
-        │
-        ▼
- Discovery Agent (Linkup search)
-        │  finds & excludes already-contacted businesses
-        ▼
- Research Agent (Linkup search)
-        │  finds pain point + contact email
-        ▼
- Demo Builder (Playwright + Airtable + SES + Slack mock)
-        │  builds working automation, captures 4 screenshots
-        ▼
- Outreach Agent (Claude Haiku)
-        │  drafts personalized pitch email
-        ▼
- Human review → Approve & Send
-        │
-        ▼
- Screenshots uploaded to Supabase Storage
- Record saved to Supabase (History + Analytics)
-```
+graph TD
+    A[User Sets Niche / Location / Scale / Count] --> B[Discovery Agent<br/><i>Linkup Search</i>]
+    B -->|Finds & Excludes Contacted Businesses| C[Research Agent<br/><i>Linkup Search</i>]
+    C -->|Finds Pain Point + Contact Email| D[Demo Builder<br/><i>Playwright + Airtable + SES + Slack Mock</i>]
+    D -->|Builds Working Automation & Captures 4 Screenshots| E[Outreach Agent<br/><i>Claude Haiku</i>]
+    E -->|Drafts Personalized Pitch Email| F[Human Review<br/><i>Approve & Send</i>]
+    F --> G[(Supabase Storage & Database)<br/><i>Screenshots + History + Analytics</i>]
+
+    style A fill:#2d3748,stroke:#4a5568,color:#fff
+    style B fill:#1a365d,stroke:#2b6cb0,color:#fff
+    style C fill:#1a365d,stroke:#2b6cb0,color:#fff
+    style D fill:#2c5282,stroke:#3182ce,color:#fff
+    style E fill:#2b6cb0,stroke:#4299e1,color:#fff
+    style F fill:#276749,stroke:#38a169,color:#fff
+    style G fill:#742a2a,stroke:#c53030,color:#fff
 
 ## Running it locally
 

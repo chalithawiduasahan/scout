@@ -57,10 +57,10 @@ Nothing is emailed without a person clicking **Approve & send**.
 User sets niche/location/scale/count
         │
         ▼
- Discovery Agent (Tavily search)
+ Discovery Agent (Linkup search)
         │  finds & excludes already-contacted businesses
         ▼
- Research Agent (Tavily search)
+ Research Agent (Linkup search)
         │  finds pain point + contact email
         ▼
  Demo Builder (Playwright + Airtable + SES + Slack mock)

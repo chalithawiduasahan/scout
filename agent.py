@@ -4,9 +4,9 @@ import asyncio
 from dotenv import load_dotenv
 load_dotenv()
 
-from strands import Agent
+from strands import Agent, tool
 from strands.models import BedrockModel
-from strands_tools.tavily import tavily_search
+from linkup import LinkupClient
 from playwright.sync_api import sync_playwright
 from tools.crm import save_lead_now, archive_lead_now, cleanup_stray_new_leads
 from tools.outreach import send_email_with_attachments
@@ -16,6 +16,58 @@ model = BedrockModel(
     model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
     region_name="us-east-1"
 )
+
+# ---------------------------------------------------------------------------
+# Linkup search tools (replaces Tavily)
+# ---------------------------------------------------------------------------
+# Linkup has no pre-built Strands tool like strands_tools.tavily did, so this
+# is a small custom wrapper. Two separate tools are exposed with DIFFERENT
+# fixed depths, rather than one tool where the model picks the depth itself -
+# this guarantees discovery always uses the cheap/fast "standard" depth and
+# research always uses the more expensive/thorough "deep" depth, instead of
+# leaving that (and its cost impact) up to the model's judgement per call.
+#
+# NOTE ON COST: per Linkup's pricing, standard search runs ~$0.005-$0.055 per
+# call, while deep search runs ~$0.25-$2.50 per call - roughly 50-100x more
+# expensive. Deep is only used in research_agent below (once per selected
+# business), not in discovery, to keep that cost bounded.
+linkup_client = LinkupClient(api_key=os.getenv("LINKUP_API_KEY"))
+
+@tool
+def linkup_search_standard(query: str) -> str:
+    """Search the web for quick, standard-depth results. Use this for
+    discovering business names, basic facts, or anything that doesn't need
+    exhaustive research.
+    Args:
+        query: The search query.
+    """
+    response = linkup_client.search(
+        query=query,
+        depth="standard",
+        output_type="sourcedAnswer",
+        include_images=False,
+        include_inline_citations=False,
+    )
+    # response.answer is the clean natural-language string; the response
+    # object itself also carries sources/metadata we don't need here.
+    return response.answer
+
+@tool
+def linkup_search_deep(query: str) -> str:
+    """Search the web with deep, thorough research depth. Use this only for
+    in-depth business research that requires comprehensive, well-sourced
+    detail - it is significantly more expensive per call than standard depth.
+    Args:
+        query: The search query.
+    """
+    response = linkup_client.search(
+        query=query,
+        depth="deep",
+        output_type="sourcedAnswer",
+        include_images=False,
+        include_inline_citations=False,
+    )
+    return response.answer
 
 TALLY_FORM_URL = os.getenv("TALLY_FORM_URL")
 AIRTABLE_SHARE_URL = os.getenv("AIRTABLE_SHARE_URL")
@@ -95,7 +147,7 @@ Respond with ONLY a numbered list, one business name per line, in this exact for
 No extra commentary before or after the list.
 """
 
-discovery_agent = Agent(model=model, tools=[tavily_search], system_prompt=DISCOVERY_SYSTEM_PROMPT, callback_handler=None)
+discovery_agent = Agent(model=model, tools=[linkup_search_standard], system_prompt=DISCOVERY_SYSTEM_PROMPT, callback_handler=None)
 
 async def find_businesses(niche: str, location: str, scale: str = "small", excluded_businesses: list[str] = []) -> list[str]:
     exclusion_text = f"\nEXCLUDE these businesses completely (already contacted by this user): {', '.join(excluded_businesses)}" if excluded_businesses else ""
@@ -113,27 +165,30 @@ async def find_businesses(niche: str, location: str, scale: str = "small", exclu
 
 # ---- Stage 2: Deep research ----
 RESEARCH_SYSTEM_PROMPT = """You are a business research assistant for an automation freelancer.
-Given a business name and location, use the tavily_search tool to find their website,
+Given a business name and location, use the search tool to find their website,
 social media presence, and a real contact email address if one is publicly listed
 (check their website's Contact/About page, footer, or social media bio).
-Then summarize in this EXACT plain text format, with no other content:
+Then summarize in this EXACT plain text format:
 
 Business type:
 Estimated scale (small/medium):
 Contact email (if publicly available, otherwise write "Not found"):
 One manual, repetitive customer inquiry or lead-handling task this business likely does that could be automated:
 
-Be specific and concrete. Base your answer only on what you actually find via search —
-if you can't find enough information, say so honestly instead of guessing. Only report
-a contact email if you actually found it in the search results - never invent one.
+Each of these four fields should be answered with a genuinely detailed 2-4 sentence
+explanation drawing on everything you found via search - not a single short phrase.
+Be specific and concrete, using real details you found (their actual services, scale
+indicators, likely workflows). If you can't find enough information for a field, say
+so honestly in a full sentence instead of guessing or leaving it blank. Only report a
+contact email if you actually found it in the search results - never invent one.
 
 STRICT OUTPUT RULES:
 - Do NOT include any conversational preamble or closing remarks (no "Excellent!", no "Here's my research summary", no "Let me know if...").
 - Do NOT use any markdown formatting whatsoever: no asterisks, no bold, no headings (#), no horizontal rules (---), no bullet points.
-- Output ONLY the four plain text labeled lines above, nothing else.
+- Only output the four labeled fields above, each followed by its detailed multi-sentence answer - no extra fields, bullet points, or commentary outside these four sections.
 """
 
-research_agent = Agent(model=model, tools=[tavily_search], system_prompt=RESEARCH_SYSTEM_PROMPT, callback_handler=None)
+research_agent = Agent(model=model, tools=[linkup_search_deep], system_prompt=RESEARCH_SYSTEM_PROMPT, callback_handler=None)
 
 async def research_business(business_name: str, location: str) -> str:
     response = await research_agent.invoke_async(f"Research this business: {business_name} located in {location}")

@@ -10,3 +10,4 @@ boto3
 tavily-python
 strands-agents
 strands-agents-tools
+linkup-sdk

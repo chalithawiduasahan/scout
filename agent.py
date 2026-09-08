@@ -26,15 +26,20 @@ AIRTABLE_SHARE_URL = os.getenv("AIRTABLE_SHARE_URL")
 #   use disk instead of shared memory.
 # --no-sandbox: Chromium's normal sandboxing needs OS permissions that hosted
 #   containers usually don't grant, so it must be disabled to launch at all.
-# --single-process / --disable-gpu / --no-zygote: cuts the number of extra
-#   Chromium helper processes spawned, which matters a lot on low-RAM hosts
-#   like Render's free/starter tier, where each extra process adds up fast.
+# --disable-gpu: no GPU is available in this hosted environment anyway, and
+#   this avoids Chromium spending memory/time trying to set one up.
+#
+# NOTE: --single-process and --no-zygote were tried here to save more RAM,
+# but --single-process merges Chromium's browser and renderer into one OS
+# process, which is explicitly unsupported/unstable in headless container
+# environments - it caused random "Target page, context or browser has been
+# closed" crashes mid-run. Removed for reliability; the single-shared-browser
+# approach below (one browser reused across all 4 screenshots, guaranteed
+# closed via try/finally) is the safe way to cut memory usage instead.
 CHROMIUM_ARGS = [
     "--disable-dev-shm-usage",
     "--no-sandbox",
-    "--single-process",
     "--disable-gpu",
-    "--no-zygote",
 ]
 
 # ---------------------------------------------------------------------------

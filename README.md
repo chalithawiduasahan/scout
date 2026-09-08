@@ -42,7 +42,7 @@ Nothing is emailed without a person clicking **Approve & send**.
 |---|---|
 | Agent framework | [Strands Agents SDK](https://github.com/strands-agents) |
 | LLM | Claude Haiku 4.5 via Amazon Bedrock |
-| Web research | Tavily Search API |
+| Web research | Linkup Search API |
 | Browser automation | Playwright (headless Chromium) |
 | Demo CRM | Airtable |
 | Demo email delivery | Amazon SES |
